@@ -1,0 +1,39 @@
+# Node modules
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Env files
+.env
+.env.*.local
+
+# Logs
+logs/
+*.log
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# VSCode
+.vscode/
+
+# Coverage reports
+coverage/
+
+# Compiled TypeScript
+*.tsbuildinfo
+
+# Docker
+docker-compose.override.yml
+
+# Git
+.git/
+.gitmodules
+
+# Yarn
+.yarn/
+.yarnrc.yml
+.pnp.*
