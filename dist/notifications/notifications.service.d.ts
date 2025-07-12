@@ -1,0 +1,30 @@
+import { Repository } from 'typeorm';
+import { Notification } from './entities/notification.entity';
+import { CreateNotificationDto } from './dto/notification.dto';
+import { EmailService } from '../common/services/email.service';
+export declare class NotificationService {
+    private readonly notificationRepository;
+    private readonly emailService;
+    constructor(notificationRepository: Repository<Notification>, emailService: EmailService);
+    create(createNotificationDto: CreateNotificationDto): Promise<Notification>;
+    findAll(): Promise<Notification[]>;
+    findByUser(userId: string, limit?: number): Promise<Notification[]>;
+    findUnreadByUser(userId: string): Promise<Notification[]>;
+    getUnreadCount(userId: string): Promise<number>;
+    findOne(id: string): Promise<Notification>;
+    markAsRead(id: string, userId: string): Promise<Notification>;
+    markAllAsRead(userId: string): Promise<void>;
+    remove(id: string, userId: string): Promise<void>;
+    createCampaignNotification(userId: string, campaignId: string, campaignTitle: string): Promise<Notification>;
+    createProposalNotification(userId: string, proposalId: string, campaignTitle: string): Promise<Notification>;
+    createProposalAcceptedNotification(userId: string, proposalId: string, campaignTitle: string): Promise<Notification>;
+    createProposalRejectedNotification(userId: string, proposalId: string, campaignTitle: string): Promise<Notification>;
+    createContractReadyNotification(userId: string, collaborationId: string): Promise<Notification>;
+    createDeliverableSubmittedNotification(userId: string, deliverableId: string, deliverableTitle: string): Promise<Notification>;
+    createDeliverableApprovedNotification(userId: string, deliverableId: string, deliverableTitle: string): Promise<Notification>;
+    createPaymentReceivedNotification(userId: string, amount: number, collaborationId: string): Promise<Notification>;
+    createMessageReceivedNotification(userId: string, messageId: string, senderName: string): Promise<Notification>;
+    createCollaborationCompletedNotification(userId: string, collaborationId: string, campaignTitle: string): Promise<Notification>;
+    private sendEmailNotificationIfNeeded;
+    private getEmailSubject;
+}
