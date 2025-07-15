@@ -152,9 +152,7 @@ docker-compose up --build
 - 🔄 Real-time messaging via gateway
 - 🚀 Microservice architecture with Redis/RMQ
 
-## 🏁 License
-Licensed under the MIT License.
 
 ---
 
-**Made with ❤️ by Mritunjay Sukla**
+**Developed by Mritunjay Sukla**
