@@ -1,134 +1,119 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Resend } from 'resend';
+import * as nodemailer from 'nodemailer';
+import { Transporter } from 'nodemailer';
 
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
-  private readonly resend: Resend;
+  private readonly transporter: Transporter;
   private readonly fromEmail: string;
   private readonly fromName: string;
 
-  constructor(private readonly configService: ConfigService) {
-    const apiKey = this.configService.get<string>('RESEND_API_KEY');
+  constructor(private readonly config: ConfigService) {
+    /* ------------------------------------------------------------------
+       1. "From" defaults (override in .env if you like)
+    ------------------------------------------------------------------ */
+    this.fromEmail = this.config.get<string>('FROM_EMAIL') ?? 'collabvortex.noreply@gmail.com';
+    this.fromName = this.config.get<string>('FROM_NAME') ?? 'CollabVortex';
 
-    if (!apiKey || apiKey === 'your-resend-api-key-here') {
-      this.logger.warn('Resend API key not configured. Email functionality will be disabled.');
-      this.resend = null;
-    } else {
-      this.resend = new Resend(apiKey);
-    }
+    /* ------------------------------------------------------------------
+       2. Brevo SMTP transporter
+    ------------------------------------------------------------------ */
+    this.transporter = nodemailer.createTransport({
+      host: this.config.get<string>('EMAIL_HOST', 'smtp.gmail.com'),
+      port: this.config.get<number>('EMAIL_PORT', 587),
+      secure: false, // STARTTLS on port 587, so keep false
+      auth: {
+        user: this.config.get<string>('EMAIL_USER'),
+        pass: this.config.get<string>('EMAIL_PASS'),
+      },
+    });
 
-    this.fromEmail = this.configService.get<string>('FROM_EMAIL') || 'noreply@collabvortex.com';
-    this.fromName = this.configService.get<string>('FROM_NAME') || 'CollabVortex';
+    // Optional: show "connected" once at boot
+    this.verifyConnection();
   }
+
+  /* --------------------------------------------------------------------
+     Verify transporter once during app bootstrap
+  -------------------------------------------------------------------- */
+  private async verifyConnection(): Promise<void> {
+    try {
+      await this.transporter.verify();
+      this.logger.log('✅ SMTP connection verified');
+    } catch (err) {
+      this.logger.error('❌ SMTP connection failed', err);
+    }
+  }
+
+  /* --------------------------------------------------------------------
+     Public methods — unchanged except for log wording
+  -------------------------------------------------------------------- */
 
   async sendPasswordResetEmail(to: string, resetToken: string): Promise<boolean> {
-    if (!this.resend) {
-      this.logger.warn('Resend not initialized. Skipping email send.');
-      return false;
-    }
+    const resetUrl = `${this.config.get('FRONTEND_URL', 'http://localhost:3000')}/auth/reset-password?token=${resetToken}`;
 
-    const resetUrl = `${this.configService.get('FRONTEND_URL', 'http://localhost:3000')}/auth/reset-password?token=${resetToken}`;
-
-    try {
-      const { data, error } = await this.resend.emails.send({
-        from: `${this.fromName} <${this.fromEmail}>`,
-        to: [to],
-        subject: 'Reset Your CollabVortex Password',
-        html: this.getPasswordResetTemplate(resetUrl),
-      });
-
-      if (error) {
-        this.logger.error('Failed to send password reset email:', error);
-        return false;
-      }
-
-      this.logger.log(`Password reset email sent to ${to}. ID: ${data?.id}`);
-      return true;
-    } catch (error) {
-      this.logger.error('Failed to send password reset email:', error);
-      return false;
-    }
+    return this.sendHtml({
+      to,
+      subject: 'Reset Your CollabVortex Password',
+      html: this.getPasswordResetTemplate(resetUrl),
+      logLabel: 'Password reset',
+    });
   }
 
-  async sendWelcomeEmail(to: string, userName: string): Promise<boolean> {
-    if (!this.resend) {
-      this.logger.warn('Resend not initialized. Skipping email send.');
-      return false;
-    }
-
-    try {
-      const { data, error } = await this.resend.emails.send({
-        from: `${this.fromName} <${this.fromEmail}>`,
-        to: [to],
-        subject: 'Welcome to CollabVortex!',
-        html: this.getWelcomeTemplate(userName),
-      });
-
-      if (error) {
-        this.logger.error('Failed to send welcome email:', error);
-        return false;
-      }
-
-      this.logger.log(`Welcome email sent to ${to}. ID: ${data?.id}`);
-      return true;
-    } catch (error) {
-      this.logger.error('Failed to send welcome email:', error);
-      return false;
-    }
+  async sendWelcomeEmail(to: string, name: string): Promise<boolean> {
+    return this.sendHtml({
+      to,
+      subject: 'Welcome to CollabVortex!',
+      html: this.getWelcomeTemplate(name),
+      logLabel: 'Welcome',
+    });
   }
 
   async sendNotificationEmail(to: string, subject: string, message: string): Promise<boolean> {
-    if (!this.resend) {
-      this.logger.warn('Resend not initialized. Skipping email send.');
-      return false;
-    }
-
-    try {
-      const { data, error } = await this.resend.emails.send({
-        from: `${this.fromName} <${this.fromEmail}>`,
-        to: [to],
-        subject,
-        html: this.getNotificationTemplate(subject, message),
-      });
-
-      if (error) {
-        this.logger.error('Failed to send notification email:', error);
-        return false;
-      }
-
-      this.logger.log(`Notification email sent to ${to}. ID: ${data?.id}`);
-      return true;
-    } catch (error) {
-      this.logger.error('Failed to send notification email:', error);
-      return false;
-    }
+    return this.sendHtml({
+      to,
+      subject,
+      html: this.getNotificationTemplate(subject, message),
+      logLabel: 'Notification',
+    });
   }
 
-  async sendPasswordChangedEmail(to: string, userName: string): Promise<boolean> {
-    if (!this.resend) {
-      this.logger.warn('Resend not initialized. Skipping email send.');
-      return false;
-    }
+  async sendPasswordChangedEmail(to: string, name: string): Promise<boolean> {
+    return this.sendHtml({
+      to,
+      subject: 'Password Changed Successfully',
+      html: this.getPasswordChangedTemplate(name),
+      logLabel: 'Password‑changed',
+    });
+  }
 
+  /* --------------------------------------------------------------------
+     Helper to DRY up send‑mail code
+  -------------------------------------------------------------------- */
+  private async sendHtml({
+    to,
+    subject,
+    html,
+    logLabel,
+  }: {
+    to: string;
+    subject: string;
+    html: string;
+    logLabel: string;
+  }): Promise<boolean> {
     try {
-      const { data, error } = await this.resend.emails.send({
-        from: `${this.fromName} <${this.fromEmail}>`,
-        to: [to],
-        subject: 'Password Changed Successfully',
-        html: this.getPasswordChangedTemplate(userName),
+      const info = await this.transporter.sendMail({
+        from: `"${this.fromName}" <${this.fromEmail}>`,
+        to,
+        subject,
+        html,
       });
 
-      if (error) {
-        this.logger.error('Failed to send password changed email:', error);
-        return false;
-      }
-
-      this.logger.log(`Password changed email sent to ${to}. ID: ${data?.id}`);
+      this.logger.log(`${logLabel} email sent to ${to}. Message ID: ${info.messageId}`);
       return true;
-    } catch (error) {
-      this.logger.error('Failed to send password changed email:', error);
+    } catch (err) {
+      this.logger.error(`Failed to send ${logLabel.toLowerCase()} email`, err);
       return false;
     }
   }
@@ -200,7 +185,7 @@ export class EmailService {
             </div>
             
             <div style="text-align: center; margin: 30px 0;">
-              <a href="${this.configService.get('FRONTEND_URL', 'http://localhost:3000')}/dashboard" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">Get Started</a>
+              <a href="${this.config.get('FRONTEND_URL', 'http://localhost:3000')}/dashboard" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">Get Started</a>
             </div>
           </div>
           
@@ -231,7 +216,7 @@ export class EmailService {
             <p>${message}</p>
             
             <div style="text-align: center; margin: 30px 0;">
-              <a href="${this.configService.get('FRONTEND_URL', 'http://localhost:3000')}/dashboard" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">View Dashboard</a>
+              <a href="${this.config.get('FRONTEND_URL', 'http://localhost:3000')}/dashboard" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block;">View Dashboard</a>
             </div>
           </div>
           
