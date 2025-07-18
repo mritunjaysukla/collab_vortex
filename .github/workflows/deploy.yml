@@ -43,7 +43,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             # Login to Docker Hub
-            docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+            docker login -u ${{ secrets.DO_USERNAME }} -p ${{ secrets.DO_PASSWORD }}
 
             # Pull the latest image
             docker pull mritunjay7/collab_vortex:latest
