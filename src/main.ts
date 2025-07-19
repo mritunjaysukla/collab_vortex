@@ -63,7 +63,7 @@ async function bootstrap() {
 
   SwaggerModule.setup('api/docs', app, document, {
     swaggerOptions: {
-      url: '/api-json', // ✅ Important fix for blank Swagger UI inside Docker/Nginx
+      url: '/api/docs-json',  // ✅ correct path for OpenAPI JSON
     },
   });
 
