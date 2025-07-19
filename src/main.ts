@@ -61,7 +61,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
 
   // ✅ Just this — DO NOT add swaggerOptions.url manually
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup('docs', app, document);
 
 
   const port = configService.get('PORT', 3000);
