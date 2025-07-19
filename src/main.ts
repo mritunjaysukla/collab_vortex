@@ -68,7 +68,7 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
 
   console.log(`🚀 CollabVortex API is running on: http://localhost:${port}`);
-  console.log(`📚 Swagger Documentation: http://localhost:${port}/api/docs`);
+  console.log(`📚 Swagger Documentation: http://localhost:${port}/docs`);
 }
 
 bootstrap();
