@@ -1,43 +1,50 @@
-version: '3.8'
+#version: "3.9"
 
 services:
-  postgres:
-    image: postgres:15
+  app:
+    image: mritunjay7/collab_vortex:latest
+    restart: always
+    ports:
+      - "8888:3000"
+    env_file:
+      - ./.env
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - ./storage:/app/storage
+    networks:
+      - collab_vortex_network
+
+  db:
+    image: postgres:13-alpine
+    restart: always
+    ports:
+      - "3035:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: Anihortes1
       POSTGRES_DB: collab_vortex
-    ports:
-      - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - collab_vortex_network
 
-  app:
-    build: .
+  redis:
+    image: redis:6-alpine
+    restart: always
     ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=development
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USERNAME=postgres
-      - DB_PASSWORD=Anihortes1
-      - DB_DATABASE=collab_vortex
-      - JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
-      - JWT_REFRESH_SECRET=your-super-secret-refresh-jwt-key-change-this-in-production
-    depends_on:
-      postgres:
-        condition: service_healthy
+      - "6258:6379"
     volumes:
-      - .:/app
-      - /app/node_modules
+      - redis-data:/data
+    networks:
+      - collab_vortex_network
 
 volumes:
-  postgres_data:
+  db-data:
+  redis-data:
 
 
+networks:
+  collab_vortex_network:
+    external: true
