@@ -41,7 +41,6 @@ async function bootstrap() {
     }),
   );
 
-  // Swagger documentation
   const config = new DocumentBuilder()
     .setTitle('CollabVortex API')
     .setDescription('A collaboration platform API for brands and content creators')
@@ -61,11 +60,9 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, config);
 
-  SwaggerModule.setup('api/docs', app, document, {
-    swaggerOptions: {
-      url: '/api/docs-json', // ✅ ensure Swagger UI fetches from correct OpenAPI JSON
-    },
-  });
+  // ✅ Just this — DO NOT add swaggerOptions.url manually
+  SwaggerModule.setup('api/docs', app, document);
+
 
   const port = configService.get('PORT', 3000);
   await app.listen(port);
