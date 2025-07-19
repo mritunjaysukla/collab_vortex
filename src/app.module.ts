@@ -17,6 +17,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { PlatformIntegrationModule } from './platform-integrations/platform-integrations.module';
 import { PaymentModule } from './payments/payments.module';
 import { ChatModule } from './chat/chat.module';
+import { ConnectionsModule } from './connections/connections.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { ChatModule } from './chat/chat.module';
     PlatformIntegrationModule,
     PaymentModule,
     ChatModule,
+    ConnectionsModule,
   ],
 })
 export class AppModule { }
