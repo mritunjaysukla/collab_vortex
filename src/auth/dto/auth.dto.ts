@@ -8,8 +8,10 @@ export class RegisterDto {
   email: string;
 
   @ApiProperty({ example: 'securePassword123', minLength: 6 })
+  @IsString()
   @MinLength(6)
   password: string;
+
 
   @ApiProperty({ enum: UserRole, example: UserRole.CREATOR })
   @IsEnum(UserRole)
@@ -22,12 +24,8 @@ export class LoginDto {
   email: string;
 
   @ApiProperty({ example: 'securePassword123' })
+  @IsString()
   password: string;
-}
-
-export class RefreshTokenDto {
-  @ApiProperty({ example: 'refresh-token-string' })
-  refreshToken: string;
 }
 
 export class ResetPasswordDto {
@@ -45,12 +43,20 @@ export class ChangePasswordDto {
   newPassword: string;
 }
 
+export class ConfirmResetPasswordDto {
+  @ApiProperty({ example: 'reset-token-from-email' })
+  @IsString()
+  token: string;
+
+  @ApiProperty({ example: 'newPassword123', minLength: 6 })
+  @IsString()
+  @MinLength(6)
+  newPassword: string;
+}
+
 export class AuthResponseDto {
   @ApiProperty({ example: 'jwt-access-token' })
   accessToken: string;
-
-  @ApiProperty({ example: 'jwt-refresh-token' })
-  refreshToken: string;
 
   @ApiProperty({
     example: {
@@ -66,13 +72,4 @@ export class AuthResponseDto {
   };
 }
 
-export class ConfirmResetPasswordDto {
-  @ApiProperty({ example: 'reset-token-from-email' })
-  @IsString()
-  token: string;
 
-  @ApiProperty({ example: 'newPassword123', minLength: 6 })
-  @IsString()
-  @MinLength(6)
-  newPassword: string;
-}

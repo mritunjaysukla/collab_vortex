@@ -3,7 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
-import * as compression from 'compression';
+import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import { AppModule } from './app.module';
 
@@ -41,7 +41,6 @@ async function bootstrap() {
     }),
   );
 
-  // Swagger documentation
   const config = new DocumentBuilder()
     .setTitle('CollabVortex API')
     .setDescription('A collaboration platform API for brands and content creators')
@@ -60,13 +59,16 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+
+  // ✅ Just this — DO NOT add swaggerOptions.url manually
+  SwaggerModule.setup('docs', app, document);
+
 
   const port = configService.get('PORT', 3000);
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
 
   console.log(`🚀 CollabVortex API is running on: http://localhost:${port}`);
-  console.log(`📚 Swagger Documentation: http://localhost:${port}/api/docs`);
+  console.log(`📚 Swagger Documentation: http://localhost:${port}/docs`);
 }
 
 bootstrap();

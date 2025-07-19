@@ -155,4 +155,4 @@ docker-compose up --build
 
 ---
 
-**Developer- Mritunjay Sukla**
+**Made with ❤️ by Mritunjay Sukla**
