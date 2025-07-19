@@ -3,7 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
-import compression from 'compression';  // Changed this line
+import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import { AppModule } from './app.module';
 
@@ -60,7 +60,12 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+
+  SwaggerModule.setup('api/docs', app, document, {
+    swaggerOptions: {
+      url: '/api-json', // ✅ Important fix for blank Swagger UI inside Docker/Nginx
+    },
+  });
 
   const port = configService.get('PORT', 3000);
   await app.listen(port);
