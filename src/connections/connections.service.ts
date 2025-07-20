@@ -367,3 +367,4 @@ export class ConnectionsService {
     return Array.from(industries);
   }
 }
+
