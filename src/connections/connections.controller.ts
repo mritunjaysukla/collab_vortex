@@ -1,11 +1,36 @@
-import { Controller, Get, Post, Body, Patch, Param, Request, UseGuards, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  Request,
+  Query,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiQuery,
+  ApiParam,
+} from '@nestjs/swagger';
+import { ConnectionsService } from './connections.service';
+import {
+  CreateConnectionDto,
+  UpdateConnectionDto,
+  ConnectionResponseDto,
+  ConnectionRecommendationDto,
+  RecommendedCreatorCardDto,
+  RecommendedBrandCardDto,
+} from './dto/connection.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums';
-import { ConnectionsService } from './connections.service';
-import { CreateConnectionDto, UpdateConnectionDto, ConnectionResponseDto, ConnectionRecommendationDto } from './dto/connection.dto';
 
 @ApiTags('connections')
 @Controller('connections')
@@ -107,5 +132,31 @@ export class ConnectionsController {
       req.user.role,
       { status: 'rejected' as any, message: 'Connection rejected' },
     );
+  }
+
+  @Get('cards/creators')
+  @Roles(UserRole.BRAND)
+  @UseGuards(RolesGuard)
+  @ApiOperation({ summary: 'Get creator cards for brand discovery' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of recommended creator cards',
+    type: [RecommendedCreatorCardDto],
+  })
+  async getCreatorCards(@Request() req): Promise<RecommendedCreatorCardDto[]> {
+    return await this.connectionsService.getRecommendedCreatorsForBrand(req.user.id);
+  }
+
+  @Get('cards/brands')
+  @Roles(UserRole.CREATOR)
+  @UseGuards(RolesGuard)
+  @ApiOperation({ summary: 'Get brand cards for creator discovery' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of recommended brand cards',
+    type: [RecommendedBrandCardDto],
+  })
+  async getBrandCards(@Request() req): Promise<RecommendedBrandCardDto[]> {
+    return await this.connectionsService.getRecommendedBrandsForCreator(req.user.id);
   }
 }

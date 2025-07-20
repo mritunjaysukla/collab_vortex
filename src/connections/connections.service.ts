@@ -2,7 +2,13 @@ import { Injectable, NotFoundException, ForbiddenException, ConflictException } 
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Connection, ConnectionInitiator, ConnectionStatus } from './entities/connection.entity';
-import { CreateConnectionDto, UpdateConnectionDto, ConnectionRecommendationDto } from './dto/connection.dto';
+import {
+  CreateConnectionDto,
+  UpdateConnectionDto,
+  ConnectionRecommendationDto,
+  RecommendedCreatorCardDto,
+  RecommendedBrandCardDto,
+} from './dto/connection.dto';
 import { CreatorProfileService } from '../creator-profile/creator-profile.service';
 import { BrandProfileService } from '../brand-profile/brand-profile.service';
 import { UserRole } from '../common/enums';
@@ -212,6 +218,116 @@ export class ConnectionsService {
     return [];
   }
 
+  async getRecommendedCreatorsForBrand(userId: string): Promise<RecommendedCreatorCardDto[]> {
+    const brandProfile = await this.brandProfileService.findByUserId(userId);
+    if (!brandProfile) return [];
+
+    // Get creator recommendations (reuse existing logic)
+    const creators = await this.getRecommendations(userId, UserRole.BRAND);
+
+    if (creators.length === 0) return [];
+
+    // Extract creator IDs for batch query
+    const creatorIds = creators.map(creator => creator.id);
+
+    // Batch query to get connection stats for all creators at once
+    const connectionStats = await this.connectionRepository
+      .createQueryBuilder('connection')
+      .select('connection.creatorProfileId', 'creatorId')
+      .addSelect('connection.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .where('connection.creatorProfileId IN (:...creatorIds)', { creatorIds })
+      .groupBy('connection.creatorProfileId, connection.status')
+      .getRawMany();
+
+    // Transform stats into a map for quick lookup
+    const statsMap = new Map<string, { activeCount: number; pastCount: number }>();
+
+    creatorIds.forEach(id => {
+      statsMap.set(id, { activeCount: 0, pastCount: 0 });
+    });
+
+    connectionStats.forEach(stat => {
+      const creatorId = stat.creatorId;
+      const count = parseInt(stat.count);
+
+      if (stat.status === ConnectionStatus.ACCEPTED) {
+        statsMap.get(creatorId)!.activeCount = count;
+      } else {
+        statsMap.get(creatorId)!.pastCount += count;
+      }
+    });
+
+    // Map creators to DTOs with connection stats
+    return creators.map(creator => {
+      const stats = statsMap.get(creator.id) || { activeCount: 0, pastCount: 0 };
+
+      return {
+        id: creator.id,
+        name: creator.user?.email?.split('@')[0] || 'Creator', // Use email prefix as name if no specific name field
+        avatar: creator.profileImage || null,
+        niches: creator.niches || [],
+        activeCount: stats.activeCount,
+        pastCount: stats.pastCount,
+      };
+    });
+  }
+
+  async getRecommendedBrandsForCreator(userId: string): Promise<RecommendedBrandCardDto[]> {
+    const creatorProfile = await this.creatorProfileService.findByUserId(userId);
+    if (!creatorProfile) return [];
+
+    // Get brand recommendations (reuse existing logic)
+    const brands = await this.getRecommendations(userId, UserRole.CREATOR);
+
+    if (brands.length === 0) return [];
+
+    // Extract brand IDs for batch query
+    const brandIds = brands.map(brand => brand.id);
+
+    // Batch query to get connection stats for all brands at once
+    const connectionStats = await this.connectionRepository
+      .createQueryBuilder('connection')
+      .select('connection.brandProfileId', 'brandId')
+      .addSelect('connection.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .where('connection.brandProfileId IN (:...brandIds)', { brandIds })
+      .groupBy('connection.brandProfileId, connection.status')
+      .getRawMany();
+
+    // Transform stats into a map for quick lookup
+    const statsMap = new Map<string, { activeCount: number; pastCount: number }>();
+
+    brandIds.forEach(id => {
+      statsMap.set(id, { activeCount: 0, pastCount: 0 });
+    });
+
+    connectionStats.forEach(stat => {
+      const brandId = stat.brandId;
+      const count = parseInt(stat.count);
+
+      if (stat.status === ConnectionStatus.ACCEPTED) {
+        statsMap.get(brandId)!.activeCount = count;
+      } else {
+        statsMap.get(brandId)!.pastCount += count;
+      }
+    });
+
+    // Map brands to DTOs with connection stats
+    return brands.map(brand => {
+      const stats = statsMap.get(brand.id) || { activeCount: 0, pastCount: 0 };
+
+      return {
+        id: brand.id,
+        name: brand.companyName,
+        avatar: brand.logoUrl || null,
+        industry: brand.industry || 'Not specified',
+        activeCount: stats.activeCount,
+        pastCount: stats.pastCount,
+      };
+    });
+  }
+
   // Helper method to map creator niches to relevant brand industries
   // This is a simplified approach - in a real implementation, you might have a more sophisticated mapping
   private mapNichesToIndustries(niches: string[]): string[] {
@@ -225,6 +341,17 @@ export class ConnectionsService {
       'technology': ['Technology', 'Electronics', 'Software'],
       'gaming': ['Gaming', 'Entertainment'],
       'business': ['Business Services', 'Finance', 'Professional Services'],
+      'music': ['Music', 'Entertainment', 'Media'],
+      'art': ['Art', 'Design', 'Culture'],
+      'education': ['Education', 'E-Learning', 'Training'],
+      'pets': ['Pet Care', 'Pet Products', 'Animal Services'],
+      'automotive': ['Automotive', 'Transportation'],
+      'sports': ['Sports & Fitness', 'Athletics', 'Outdoor Recreation'],
+      'photography': ['Photography', 'Media', 'Visual Arts'],
+      'parenting': ['Parenting', 'Baby Products', 'Family Services'],
+      'sustainability': ['Eco-Friendly', 'Environmental Services', 'Green Products'],
+      'finance': ['Finance', 'Banking', 'Investment'],
+      'healthcare': ['Healthcare', 'Medical Services', 'Wellness'],
       // Add more mappings as needed
     };
 

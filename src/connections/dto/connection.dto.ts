@@ -61,3 +61,43 @@ export class ConnectionRecommendationDto {
   @IsString()
   industry?: string;
 }
+
+export class RecommendedCreatorCardDto {
+  @ApiProperty({ example: 'uuid-string' })
+  id: string;
+
+  @ApiProperty({ example: 'John Doe' })
+  name: string;
+
+  @ApiProperty({ example: 'https://example.com/avatar.jpg' })
+  avatar: string;
+
+  @ApiProperty({ example: ['lifestyle', 'fashion', 'travel'] })
+  niches: string[];
+
+  @ApiProperty({ example: 15 })
+  activeCount: number;
+
+  @ApiProperty({ example: 3 })
+  pastCount: number;
+}
+
+export class RecommendedBrandCardDto {
+  @ApiProperty({ example: 'uuid-string' })
+  id: string;
+
+  @ApiProperty({ example: 'Fashion Forward Inc.' })
+  name: string;
+
+  @ApiProperty({ example: 'https://example.com/logo.png' })
+  avatar: string;
+
+  @ApiProperty({ example: 'Fashion & Lifestyle' })
+  industry: string;
+
+  @ApiProperty({ example: 8 })
+  activeCount: number;
+
+  @ApiProperty({ example: 2 })
+  pastCount: number;
+}

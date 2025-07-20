@@ -63,12 +63,14 @@ export class AuthResponseDto {
       id: 'uuid-string',
       email: 'john@example.com',
       role: 'creator',
+      isActive: true,
     },
   })
   user: {
     id: string;
     email: string;
     role: UserRole;
+    isActive: boolean;
   };
 }
 
