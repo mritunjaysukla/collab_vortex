@@ -39,4 +39,4 @@ docker-compose.yml
 .yarnrc.yml
 .pnp.*
 
-database/
+

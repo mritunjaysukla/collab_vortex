@@ -41,7 +41,7 @@ export class ProfileCompletionGuard implements CanActivate {
         return true;
       }
 
-      // For other routes, check if the profile is completed (user is active)
+      // For other routes that require a complete profile
       const user = await this.usersService.findOne(payload.sub);
       if (!user.isActive) {
         throw new UnauthorizedException('Please complete your profile to access this resource');
@@ -49,7 +49,10 @@ export class ProfileCompletionGuard implements CanActivate {
 
       return true;
     } catch (error) {
-      throw new UnauthorizedException('Invalid token or profile not completed');
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new UnauthorizedException('Invalid token');
     }
   }
 

@@ -84,14 +84,6 @@ export class AuthService {
         throw new UnauthorizedException('Invalid email or password');
       }
 
-      // Check if account is active
-      if (!user.isActive) {
-        this.logger.warn(`Login failed: Account inactive for user ${user.id}`);
-        // We know the user hasn't completed their profile if their account is inactive
-        // This is because we set isActive to true when they create a profile
-        throw new UnauthorizedException('Please complete your profile to access the platform. Your account is currently inactive.');
-      }
-
       // Verify password
       const isPasswordValid = await this.verifyPassword(loginDto.password, user.password);
       if (!isPasswordValid) {
@@ -320,16 +312,16 @@ export class AuthService {
 
   private async generateTokens(user: User): Promise<AuthResponseDto> {
     try {
-      const payload = { email: user.email, sub: user.id, role: user.role };
+      const payload = {
+        email: user.email,
+        sub: user.id,
+        role: user.role,
+        isProfileComplete: user.isActive // Include profile completion status
+      };
 
       const accessToken = this.jwtService.sign(payload, {
         secret: this.configService.get('JWT_SECRET'),
         expiresIn: this.configService.get('JWT_EXPIRATION', '15m'),
-      });
-
-      const refreshToken = this.jwtService.sign(payload, {
-        secret: this.configService.get('JWT_REFRESH_SECRET'),
-        expiresIn: this.configService.get('JWT_REFRESH_EXPIRATION', '7d'),
       });
 
       return {
@@ -339,6 +331,7 @@ export class AuthService {
           email: user.email,
           role: user.role,
           isActive: user.isActive,
+          isProfileComplete: user.isActive // Now this property is expected
         },
       };
     } catch (error) {

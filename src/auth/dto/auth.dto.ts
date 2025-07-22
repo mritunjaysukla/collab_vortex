@@ -64,6 +64,7 @@ export class AuthResponseDto {
       email: 'john@example.com',
       role: 'creator',
       isActive: true,
+      isProfileComplete: true,
     },
   })
   user: {
@@ -71,6 +72,7 @@ export class AuthResponseDto {
     email: string;
     role: UserRole;
     isActive: boolean;
+    isProfileComplete: boolean;
   };
 }
 
