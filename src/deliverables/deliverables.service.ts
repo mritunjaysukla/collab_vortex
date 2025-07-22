@@ -101,7 +101,7 @@ export class DeliverableService {
       throw new BadRequestException('Deliverable must be in pending status to submit');
     }
 
-    deliverable.contentUrl = submitDeliverableDto.contentUrl;
+    deliverable.contentUrl = submitDeliverableDto.content;
     deliverable.attachments = submitDeliverableDto.attachments || [];
     deliverable.metadata = { ...deliverable.metadata, ...submitDeliverableDto.metadata };
     deliverable.status = DeliverableStatus.SUBMITTED;
@@ -137,7 +137,7 @@ export class DeliverableService {
       throw new BadRequestException('Deliverable must be in pending status to resubmit');
     }
 
-    deliverable.contentUrl = submitDeliverableDto.contentUrl;
+    deliverable.contentUrl = submitDeliverableDto.content;
     deliverable.attachments = submitDeliverableDto.attachments || [];
     deliverable.metadata = { ...deliverable.metadata, ...submitDeliverableDto.metadata };
     deliverable.status = DeliverableStatus.SUBMITTED;
