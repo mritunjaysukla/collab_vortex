@@ -23,10 +23,16 @@ export class CreatorProfile {
   user: User;
 
   @Column({ nullable: true })
+  name: string;
+
+  @Column({ nullable: true })
   bio: string;
 
   @Column({ nullable: true })
-  profileImage: string;
+  profileImageFilename: string;
+
+  @Column({ nullable: true })
+  profileImageMimetype: string;
 
   @Column('jsonb', { nullable: true })
   platformStats: {

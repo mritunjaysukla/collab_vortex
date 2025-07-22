@@ -3,9 +3,15 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { CreatorProfileService } from './creator-profile.service';
 import { CreatorProfileController } from './creator-profile.controller';
 import { CreatorProfile } from './entities/creator-profile.entity';
+import { UsersModule } from '../users/users.module';
+import { CommonModule } from '../common/common.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CreatorProfile])],
+  imports: [
+    TypeOrmModule.forFeature([CreatorProfile]),
+    UsersModule,
+    CommonModule,
+  ],
   controllers: [CreatorProfileController],
   providers: [CreatorProfileService],
   exports: [CreatorProfileService],

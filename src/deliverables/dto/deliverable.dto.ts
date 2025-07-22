@@ -50,6 +50,10 @@ export class UpdateDeliverableDto {
   @IsString()
   contentUrl?: string;
 
+  // File metadata properties
+  contentFileName?: string;
+  contentMimeType?: string;
+
   @ApiProperty({ enum: DeliverableStatus, description: 'Deliverable status', required: false })
   @IsOptional()
   @IsEnum(DeliverableStatus)
@@ -78,9 +82,12 @@ export class UpdateDeliverableDto {
 }
 
 export class SubmitDeliverableDto {
-  @ApiProperty({ description: 'Content URL' })
-  @IsString()
-  contentUrl: string;
+  @ApiProperty({ type: 'string', format: 'binary', description: 'Content file (jpeg, jpg, png)' })
+  content?: any;
+
+  // File metadata properties
+  contentFileName?: string;
+  contentMimeType?: string;
 
   @ApiProperty({ description: 'Attachment URLs', required: false })
   @IsOptional()

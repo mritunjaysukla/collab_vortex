@@ -86,8 +86,10 @@ export class AuthService {
 
       // Check if account is active
       if (!user.isActive) {
-        this.logger.warn(`Login failed: Account deactivated for user ${user.id}`);
-        throw new UnauthorizedException('Your account has been deactivated. Please contact support.');
+        this.logger.warn(`Login failed: Account inactive for user ${user.id}`);
+        // We know the user hasn't completed their profile if their account is inactive
+        // This is because we set isActive to true when they create a profile
+        throw new UnauthorizedException('Please complete your profile to access the platform. Your account is currently inactive.');
       }
 
       // Verify password

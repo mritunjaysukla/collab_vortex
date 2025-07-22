@@ -19,10 +19,15 @@ export class CreateBrandProfileDto {
   @IsString()
   industry?: string;
 
-  @ApiProperty({ example: 'https://example.com/logo.png' })
-  @IsOptional()
-  @IsUrl()
-  logoUrl?: string;
+  // No validation here because we'll handle it separately with file upload
+  // The file will be processed via multer and handled in the controller
+  @ApiProperty({ type: 'string', format: 'binary', description: 'Brand logo image file (jpeg, jpg, png)' })
+  logo?: any;
+
+  // Added properties for file metadata
+  logoFilename?: string;
+  logoOriginalname?: string;
+  logoMimetype?: string;
 
   @ApiProperty({ example: '50-100 employees' })
   @IsOptional()
@@ -68,10 +73,13 @@ export class UpdateBrandProfileDto {
   @IsString()
   industry?: string;
 
-  @ApiProperty({ example: 'https://example.com/new-logo.png' })
-  @IsOptional()
-  @IsUrl()
-  logoUrl?: string;
+  // No validation here because we'll handle it separately with file upload
+  @ApiProperty({ type: 'string', format: 'binary', description: 'Brand logo image file (jpeg, jpg, png)' })
+  logo?: any;
+
+  // Added properties for file metadata
+  logoFilename?: string;
+  logoMimetype?: string;
 
   @ApiProperty({ example: true })
   @IsOptional()
@@ -121,8 +129,12 @@ export class BrandProfileResponseDto {
   @ApiProperty({ example: 'Fashion & Lifestyle' })
   industry: string;
 
-  @ApiProperty({ example: 'https://example.com/logo.png' })
-  logoUrl: string;
+  @ApiProperty({ example: 'logo.jpg' })
+  logoFilename: string;
+
+
+  @ApiProperty({ example: 'image/jpeg' })
+  logoMimetype: string;
 
   @ApiProperty({ example: true })
   verified: boolean;

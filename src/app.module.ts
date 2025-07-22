@@ -18,6 +18,7 @@ import { PlatformIntegrationModule } from './platform-integrations/platform-inte
 import { PaymentModule } from './payments/payments.module';
 import { ChatModule } from './chat/chat.module';
 import { ConnectionsModule } from './connections/connections.module';
+import { CommonModule } from './common/common.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { ConnectionsModule } from './connections/connections.module';
     PaymentModule,
     ChatModule,
     ConnectionsModule,
+    CommonModule,
   ],
 })
 export class AppModule { }

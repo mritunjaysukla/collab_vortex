@@ -27,7 +27,7 @@ export class User {
   })
   role: UserRole;
 
-  @Column({ default: true })
+  @Column({ default: false })
   isActive: boolean;
 
   @CreateDateColumn()

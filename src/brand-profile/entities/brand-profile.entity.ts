@@ -27,7 +27,10 @@ export class BrandProfile {
   industry: string;
 
   @Column({ nullable: true })
-  logoUrl: string;
+  logoFilename: string;
+
+  @Column({ nullable: true })
+  logoMimetype: string;
 
   @Column({ default: false })
   verified: boolean;

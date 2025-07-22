@@ -33,15 +33,22 @@ class PlatformStatsDto {
 }
 
 export class CreateCreatorProfileDto {
+  @ApiProperty({ example: 'John Doe' })
+  @IsString()
+  name: string;
+
   @ApiProperty({ example: 'Passionate content creator focused on lifestyle and fashion' })
   @IsOptional()
   @IsString()
   bio?: string;
 
-  @ApiProperty({ example: 'https://example.com/profile.jpg' })
-  @IsOptional()
-  @IsUrl()
-  profileImage?: string;
+  // No validation here because we'll handle it separately with file upload
+  @ApiProperty({ type: 'string', format: 'binary', description: 'Profile image file (jpeg, jpg, png)' })
+  profileImage?: any;
+
+  // Added properties for file metadata
+  profileImageFilename?: string;
+  profileImageMimetype?: string;
 
   @ApiProperty({
     type: [PlatformStatsDto],
@@ -89,15 +96,24 @@ export class CreateCreatorProfileDto {
 }
 
 export class UpdateCreatorProfileDto {
+  @ApiProperty({ example: 'John Doe' })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
   @ApiProperty({ example: 'Updated bio content' })
   @IsOptional()
   @IsString()
   bio?: string;
 
-  @ApiProperty({ example: 'https://example.com/new-profile.jpg' })
-  @IsOptional()
-  @IsUrl()
-  profileImage?: string;
+  // No validation here because we'll handle it separately with file upload
+  @ApiProperty({ type: 'string', format: 'binary', description: 'Profile image file (jpeg, jpg, png)' })
+  profileImage?: any;
+
+  // Added properties for file metadata
+  profileImageFilename?: string;
+  profileImageOriginalname?: string;
+  profileImageMimetype?: string;
 
   @ApiProperty({
     type: [PlatformStatsDto],
@@ -153,11 +169,20 @@ export class CreatorProfileResponseDto {
   @ApiProperty({ example: 'uuid-string' })
   id: string;
 
+  @ApiProperty({ example: 'John Doe' })
+  name: string;
+
   @ApiProperty({ example: 'Passionate content creator focused on lifestyle and fashion' })
   bio: string;
 
-  @ApiProperty({ example: 'https://example.com/profile.jpg' })
-  profileImage: string;
+  @ApiProperty({ example: 'profile.jpg' })
+  profileImageFilename: string;
+
+  @ApiProperty({ example: 'my_profile.jpg' })
+  profileImageOriginalname: string;
+
+  @ApiProperty({ example: 'image/jpeg' })
+  profileImageMimetype: string;
 
   @ApiProperty({
     type: [PlatformStatsDto],

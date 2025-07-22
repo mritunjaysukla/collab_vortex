@@ -3,23 +3,33 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BrandProfile } from './entities/brand-profile.entity';
 import { CreateBrandProfileDto, UpdateBrandProfileDto } from './dto/brand-profile.dto';
+import { UsersService } from '../users/users.service';
+import { FileUploadService } from '../common/services/file-upload.service';
 
 @Injectable()
 export class BrandProfileService {
   constructor(
     @InjectRepository(BrandProfile)
     private readonly brandProfileRepository: Repository<BrandProfile>,
+    private readonly usersService: UsersService,
+    private readonly fileUploadService: FileUploadService
   ) { }
 
   async create(
     userId: string,
     createBrandProfileDto: CreateBrandProfileDto,
   ): Promise<BrandProfile> {
+    // Create the profile
     const profile = this.brandProfileRepository.create({
       ...createBrandProfileDto,
       user: { id: userId } as any,
     });
-    return await this.brandProfileRepository.save(profile);
+    const savedProfile = await this.brandProfileRepository.save(profile);
+
+    // Activate the user once profile is created
+    await this.usersService.activate(userId);
+
+    return savedProfile;
   }
 
   async findAll(): Promise<BrandProfile[]> {
