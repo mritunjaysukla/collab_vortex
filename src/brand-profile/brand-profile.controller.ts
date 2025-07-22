@@ -72,16 +72,16 @@ export class BrandProfileController {
     return await this.brandProfileService.create(req.user.id, createBrandProfileDto);
   }
 
-  // @Get()
-  // @ApiOperation({ summary: 'Get all brand profiles' })
-  // @ApiResponse({
-  //   status: 200,
-  //   description: 'List of brand profiles',
-  //   type: [BrandProfileResponseDto],
-  // })
-  // async findAll() {
-  //   return await this.brandProfileService.findAll();
-  // }
+  @Get()
+  @ApiOperation({ summary: 'Get all brand profiles' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of brand profiles',
+    type: [BrandProfileResponseDto],
+  })
+  async findAll() {
+    return await this.brandProfileService.findAll();
+  }
 
   // @Get('verified')
   // @ApiOperation({ summary: 'Get verified brand profiles' })

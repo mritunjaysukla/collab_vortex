@@ -72,16 +72,16 @@ export class CreatorProfileController {
     return await this.creatorProfileService.create(req.user.id, createCreatorProfileDto);
   }
 
-  // @Get()
-  // @ApiOperation({ summary: 'Get all creator profiles' })
-  // @ApiResponse({
-  //   status: 200,
-  //   description: 'List of all creator profiles',
-  //   type: [CreatorProfileResponseDto],
-  // })
-  // async findAll() {
-  //   return await this.creatorProfileService.findAll();
-  // }
+  @Get()
+  @ApiOperation({ summary: 'Get all creator profiles' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of all creator profiles',
+    type: [CreatorProfileResponseDto],
+  })
+  async findAll() {
+    return await this.creatorProfileService.findAll();
+  }
 
   @Get('verified')
   @ApiOperation({ summary: 'Get verified creator profiles' })
