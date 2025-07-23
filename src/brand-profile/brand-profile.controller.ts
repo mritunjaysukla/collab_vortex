@@ -12,6 +12,7 @@ import {
   Query,
   UseInterceptors,
   UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -61,15 +62,47 @@ export class BrandProfileController {
     @Body() createBrandProfileDto: CreateBrandProfileDto,
     @UploadedFile() logo: Express.Multer.File,
   ) {
-    let fileData = null;
-    if (logo) {
-      fileData = await this.fileUploadService.saveFile(logo, 'brand-profiles');
-      createBrandProfileDto.logoFilename = fileData.filename;
-      createBrandProfileDto.logoOriginalname = fileData.originalname;
-      createBrandProfileDto.logoMimetype = fileData.mimetype;
-    }
+    try {
+      let fileData = null;
+      if (logo) {
+        fileData = await this.fileUploadService.saveFile(logo, 'brand-profiles');
+        createBrandProfileDto.logoFilename = fileData.filename;
+        createBrandProfileDto.logoOriginalname = fileData.originalname;
+        createBrandProfileDto.logoMimetype = fileData.mimetype;
+      }
 
-    return await this.brandProfileService.create(req.user.id, createBrandProfileDto);
+      // Parse arrays from form data
+      if (createBrandProfileDto.targetAudience) {
+        if (typeof createBrandProfileDto.targetAudience === 'string') {
+          try {
+            createBrandProfileDto.targetAudience = JSON.parse(createBrandProfileDto.targetAudience);
+          } catch (e) {
+            throw new BadRequestException('Invalid JSON format for targetAudience');
+          }
+        }
+        // Ensure it's an array
+        if (!Array.isArray(createBrandProfileDto.targetAudience)) {
+          throw new BadRequestException('targetAudience must be an array');
+        }
+
+        // Validate each target audience item is a string
+        for (const item of createBrandProfileDto.targetAudience) {
+          if (typeof item !== 'string') {
+            throw new BadRequestException('Each targetAudience item must be a string');
+          }
+        }
+      } else {
+        // Set default empty array if not provided
+        createBrandProfileDto.targetAudience = [];
+      }
+
+      return await this.brandProfileService.create(req.user.id, createBrandProfileDto);
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw error;
+    }
   }
 
   @Get()
@@ -152,26 +185,57 @@ export class BrandProfileController {
     @Body() updateBrandProfileDto: UpdateBrandProfileDto,
     @UploadedFile() logo: Express.Multer.File,
   ) {
-    // If a new logo is uploaded, save it and update the DTO
-    if (logo) {
-      // Get the existing profile to see if we need to delete an old logo
-      const existingProfile = await this.brandProfileService.findOne(id);
+    try {
+      // Parse arrays from form data
+      if (updateBrandProfileDto.targetAudience) {
+        if (typeof updateBrandProfileDto.targetAudience === 'string') {
+          try {
+            updateBrandProfileDto.targetAudience = JSON.parse(updateBrandProfileDto.targetAudience);
+          } catch (e) {
+            throw new BadRequestException('Invalid JSON format for targetAudience');
+          }
+        }
+        // Ensure it's an array if provided
+        if (updateBrandProfileDto.targetAudience !== undefined && !Array.isArray(updateBrandProfileDto.targetAudience)) {
+          throw new BadRequestException('targetAudience must be an array');
+        }
 
-      // Delete the old logo if it exists
-      if (existingProfile.logoFilename) {
-        await this.fileUploadService.deleteFile(
-          existingProfile.logoFilename,
-          'brand-profiles'
-        );
+        // Validate each target audience item is a string
+        if (Array.isArray(updateBrandProfileDto.targetAudience)) {
+          for (const item of updateBrandProfileDto.targetAudience) {
+            if (typeof item !== 'string') {
+              throw new BadRequestException('Each targetAudience item must be a string');
+            }
+          }
+        }
       }
 
-      // Save the new logo
-      const fileData = await this.fileUploadService.saveFile(logo, 'brand-profiles');
-      updateBrandProfileDto.logoFilename = fileData.filename;
-      updateBrandProfileDto.logoMimetype = fileData.mimetype;
-    }
+      // If a new logo is uploaded, save it and update the DTO
+      if (logo) {
+        // Get the existing profile to see if we need to delete an old logo
+        const existingProfile = await this.brandProfileService.findOne(id);
 
-    return await this.brandProfileService.update(id, updateBrandProfileDto);
+        // Delete the old logo if it exists
+        if (existingProfile.logoFilename) {
+          await this.fileUploadService.deleteFile(
+            existingProfile.logoFilename,
+            'brand-profiles'
+          );
+        }
+
+        // Save the new logo
+        const fileData = await this.fileUploadService.saveFile(logo, 'brand-profiles');
+        updateBrandProfileDto.logoFilename = fileData.filename;
+        updateBrandProfileDto.logoMimetype = fileData.mimetype;
+      }
+
+      return await this.brandProfileService.update(id, updateBrandProfileDto);
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw error;
+    }
   }
 
   @Delete(':id')
@@ -183,5 +247,16 @@ export class BrandProfileController {
   async remove(@Param('id', ParseUUIDPipe) id: string) {
     await this.brandProfileService.remove(id);
     return { message: 'Brand profile deleted successfully' };
+  }
+
+  @Get('completion-status')
+  @ApiOperation({ summary: 'Check profile completion status' })
+  @ApiResponse({ status: 200, description: 'Profile completion status' })
+  async getProfileCompletionStatus(@Request() req) {
+    const profile = await this.brandProfileService.findByUserId(req.user.id);
+    return {
+      isComplete: !!profile && req.user.isActive,
+      profile: profile || null
+    };
   }
 }

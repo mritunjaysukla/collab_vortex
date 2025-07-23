@@ -12,6 +12,7 @@ import {
   Query,
   UseInterceptors,
   UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -62,14 +63,87 @@ export class CreatorProfileController {
     @Body() createCreatorProfileDto: CreateCreatorProfileDto,
     @UploadedFile() profileImage: Express.Multer.File,
   ) {
-    let fileData = null;
-    if (profileImage) {
-      fileData = await this.fileUploadService.saveFile(profileImage, 'creator-profiles');
-      createCreatorProfileDto.profileImageFilename = fileData.filename;
-      createCreatorProfileDto.profileImageMimetype = fileData.mimetype;
-    }
+    try {
+      // Parse arrays from form data
+      if (createCreatorProfileDto.platformStats) {
+        if (typeof createCreatorProfileDto.platformStats === 'string') {
+          try {
+            createCreatorProfileDto.platformStats = JSON.parse(createCreatorProfileDto.platformStats);
+          } catch (e) {
+            throw new BadRequestException('Invalid JSON format for platformStats');
+          }
+        }
+        // Ensure it's an array
+        if (!Array.isArray(createCreatorProfileDto.platformStats)) {
+          throw new BadRequestException('platformStats must be an array');
+        }
 
-    return await this.creatorProfileService.create(req.user.id, createCreatorProfileDto);
+        // Validate each platform stats object
+        for (const stat of createCreatorProfileDto.platformStats) {
+          if (typeof stat !== 'object' || stat === null) {
+            throw new BadRequestException('Each platformStats item must be an object');
+          }
+          if (!stat.platform || typeof stat.platform !== 'string') {
+            throw new BadRequestException('Each platformStats item must have a platform string');
+          }
+          if (typeof stat.followers !== 'number' || stat.followers < 0) {
+            throw new BadRequestException('Each platformStats item must have a valid followers number');
+          }
+          if (typeof stat.engagementRate !== 'number' || stat.engagementRate < 0) {
+            throw new BadRequestException('Each platformStats item must have a valid engagementRate number');
+          }
+          if (typeof stat.avgViews !== 'number' || stat.avgViews < 0) {
+            throw new BadRequestException('Each platformStats item must have a valid avgViews number');
+          }
+        }
+      } else {
+        // Set default empty array if not provided
+        createCreatorProfileDto.platformStats = [];
+      }
+
+      if (createCreatorProfileDto.niches) {
+        if (typeof createCreatorProfileDto.niches === 'string') {
+          try {
+            createCreatorProfileDto.niches = JSON.parse(createCreatorProfileDto.niches);
+          } catch (e) {
+            throw new BadRequestException('Invalid JSON format for niches');
+          }
+        }
+        // Ensure it's an array
+        if (!Array.isArray(createCreatorProfileDto.niches)) {
+          throw new BadRequestException('niches must be an array');
+        }
+
+        // Validate each niche is a string
+        for (const niche of createCreatorProfileDto.niches) {
+          if (typeof niche !== 'string') {
+            throw new BadRequestException('Each niche must be a string');
+          }
+        }
+      } else {
+        // Set default empty array if not provided
+        createCreatorProfileDto.niches = [];
+      }
+
+      let fileData = null;
+      if (profileImage) {
+        fileData = await this.fileUploadService.saveFile(profileImage, 'creator-profiles');
+        createCreatorProfileDto.profileImageFilename = fileData.filename;
+        createCreatorProfileDto.profileImageMimetype = fileData.mimetype;
+      }
+
+      return await this.creatorProfileService.create(req.user.id, createCreatorProfileDto);
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      if (error instanceof SyntaxError) {
+        throw new BadRequestException(
+          'Invalid JSON format for array fields. Please ensure platformStats and niches are valid JSON arrays.'
+        );
+      }
+      throw error;
+    }
   }
 
   @Get()
@@ -149,27 +223,98 @@ export class CreatorProfileController {
     @Body() updateCreatorProfileDto: UpdateCreatorProfileDto,
     @UploadedFile() profileImage: Express.Multer.File,
   ) {
-    // If a new image is uploaded, save it and update the DTO
-    if (profileImage) {
-      // Get the existing profile to see if we need to delete an old image
-      const existingProfile = await this.creatorProfileService.findOne(id);
+    try {
+      // Parse arrays from form data
+      if (updateCreatorProfileDto.platformStats) {
+        if (typeof updateCreatorProfileDto.platformStats === 'string') {
+          try {
+            updateCreatorProfileDto.platformStats = JSON.parse(updateCreatorProfileDto.platformStats);
+          } catch (e) {
+            throw new BadRequestException('Invalid JSON format for platformStats');
+          }
+        }
+        // Ensure it's an array if provided
+        if (updateCreatorProfileDto.platformStats !== undefined && !Array.isArray(updateCreatorProfileDto.platformStats)) {
+          throw new BadRequestException('platformStats must be an array');
+        }
 
-      // Delete the old image if it exists
-      if (existingProfile.profileImageFilename) {
-        await this.fileUploadService.deleteFile(
-          existingProfile.profileImageFilename,
-          'creator-profiles'
-        );
+        // Validate each platform stats object
+        if (Array.isArray(updateCreatorProfileDto.platformStats)) {
+          for (const stat of updateCreatorProfileDto.platformStats) {
+            if (typeof stat !== 'object' || stat === null) {
+              throw new BadRequestException('Each platformStats item must be an object');
+            }
+            if (!stat.platform || typeof stat.platform !== 'string') {
+              throw new BadRequestException('Each platformStats item must have a platform string');
+            }
+            if (typeof stat.followers !== 'number' || stat.followers < 0) {
+              throw new BadRequestException('Each platformStats item must have a valid followers number');
+            }
+            if (typeof stat.engagementRate !== 'number' || stat.engagementRate < 0) {
+              throw new BadRequestException('Each platformStats item must have a valid engagementRate number');
+            }
+            if (typeof stat.avgViews !== 'number' || stat.avgViews < 0) {
+              throw new BadRequestException('Each platformStats item must have a valid avgViews number');
+            }
+          }
+        }
       }
 
-      // Save the new image
-      const fileData = await this.fileUploadService.saveFile(profileImage, 'creator-profiles');
-      updateCreatorProfileDto.profileImageFilename = fileData.filename;
-      updateCreatorProfileDto.profileImageOriginalname = fileData.originalname;
-      updateCreatorProfileDto.profileImageMimetype = fileData.mimetype;
-    }
+      if (updateCreatorProfileDto.niches) {
+        if (typeof updateCreatorProfileDto.niches === 'string') {
+          try {
+            updateCreatorProfileDto.niches = JSON.parse(updateCreatorProfileDto.niches);
+          } catch (e) {
+            throw new BadRequestException('Invalid JSON format for niches');
+          }
+        }
+        // Ensure it's an array if provided
+        if (updateCreatorProfileDto.niches !== undefined && !Array.isArray(updateCreatorProfileDto.niches)) {
+          throw new BadRequestException('niches must be an array');
+        }
 
-    return await this.creatorProfileService.update(id, updateCreatorProfileDto);
+        // Validate each niche is a string
+        if (Array.isArray(updateCreatorProfileDto.niches)) {
+          for (const niche of updateCreatorProfileDto.niches) {
+            if (typeof niche !== 'string') {
+              throw new BadRequestException('Each niche must be a string');
+            }
+          }
+        }
+      }
+
+      // If a new image is uploaded, save it and update the DTO
+      if (profileImage) {
+        // Get the existing profile to see if we need to delete an old image
+        const existingProfile = await this.creatorProfileService.findOne(id);
+
+        // Delete the old image if it exists
+        if (existingProfile.profileImageFilename) {
+          await this.fileUploadService.deleteFile(
+            existingProfile.profileImageFilename,
+            'creator-profiles'
+          );
+        }
+
+        // Save the new image
+        const fileData = await this.fileUploadService.saveFile(profileImage, 'creator-profiles');
+        updateCreatorProfileDto.profileImageFilename = fileData.filename;
+        updateCreatorProfileDto.profileImageOriginalname = fileData.originalname;
+        updateCreatorProfileDto.profileImageMimetype = fileData.mimetype;
+      }
+
+      return await this.creatorProfileService.update(id, updateCreatorProfileDto);
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      if (error instanceof SyntaxError) {
+        throw new BadRequestException(
+          'Invalid JSON format for array fields. Please ensure platformStats and niches are valid JSON arrays.'
+        );
+      }
+      throw error;
+    }
   }
 
   @Delete(':id')
@@ -181,5 +326,18 @@ export class CreatorProfileController {
   async remove(@Param('id', ParseUUIDPipe) id: string) {
     await this.creatorProfileService.remove(id);
     return { message: 'Creator profile deleted successfully' };
+  }
+
+  @Get('completion-status')
+  @UseGuards(JwtAuthGuard) // Only JwtAuthGuard, no ProfileCompletionGuard
+  @IsProfileCreationRoute() // Mark as a profile creation route
+  @ApiOperation({ summary: 'Check profile completion status' })
+  @ApiResponse({ status: 200, description: 'Profile completion status' })
+  async getProfileCompletionStatus(@Request() req) {
+    const user = await this.creatorProfileService.findByUserId(req.user.id);
+    return {
+      isComplete: !!user && req.user.isActive,
+      profile: user || null
+    };
   }
 }

@@ -2,7 +2,6 @@ import {
   IsString,
   IsOptional,
   IsBoolean,
-  IsArray,
   IsNumber,
   IsUrl,
   IsPositive,
@@ -51,9 +50,7 @@ export class CreateBrandProfileDto {
 
   @ApiProperty({ example: ['young adults', 'fashion enthusiasts', 'eco-conscious'] })
   @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  targetAudience?: string[];
+  targetAudience?: string[] | any;
 
   @ApiProperty({ example: 50000.00 })
   @IsOptional()
@@ -108,9 +105,7 @@ export class UpdateBrandProfileDto {
 
   @ApiProperty({ example: ['millennials', 'gen-z', 'sustainability advocates'] })
   @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  targetAudience?: string[];
+  targetAudience?: string[] | any;
 
   @ApiProperty({ example: 75000.00 })
   @IsOptional()

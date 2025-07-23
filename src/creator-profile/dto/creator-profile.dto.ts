@@ -2,13 +2,10 @@ import {
   IsString,
   IsOptional,
   IsBoolean,
-  IsArray,
   IsNumber,
   IsUrl,
-  ValidateNested,
   IsPositive,
 } from 'class-validator';
-import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 class PlatformStatsDto {
@@ -62,16 +59,11 @@ export class CreateCreatorProfileDto {
     ],
   })
   @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => PlatformStatsDto)
-  platformStats?: PlatformStatsDto[];
+  platformStats?: PlatformStatsDto[] | any;
 
   @ApiProperty({ example: ['lifestyle', 'fashion', 'travel'] })
   @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  niches?: string[];
+  niches?: string[] | any;
 
   @ApiProperty({ example: 'New York, NY' })
   @IsOptional()
@@ -127,10 +119,7 @@ export class UpdateCreatorProfileDto {
     ],
   })
   @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => PlatformStatsDto)
-  platformStats?: PlatformStatsDto[];
+  platformStats?: PlatformStatsDto[] | any;
 
   @ApiProperty({ example: false })
   @IsOptional()
@@ -139,9 +128,7 @@ export class UpdateCreatorProfileDto {
 
   @ApiProperty({ example: ['lifestyle', 'fitness', 'health'] })
   @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  niches?: string[];
+  niches?: string[] | any;
 
   @ApiProperty({ example: 'Los Angeles, CA' })
   @IsOptional()
