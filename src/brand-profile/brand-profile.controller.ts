@@ -13,6 +13,8 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -30,6 +32,7 @@ import {
   UpdateBrandProfileDto,
   BrandProfileResponseDto,
 } from './dto/brand-profile.dto';
+import { CreateBrandProfileFormDto } from './dto/brand-profile-form.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -57,12 +60,37 @@ export class BrandProfileController {
     type: BrandProfileResponseDto,
   })
   @UseInterceptors(FileInterceptor('logo'))
+  @UsePipes(new ValidationPipe({
+    transform: true,
+    skipMissingProperties: true,
+    forbidNonWhitelisted: false,
+    whitelist: false
+  }))
   async create(
     @Request() req,
-    @Body() createBrandProfileDto: CreateBrandProfileDto,
+    @Body() formData: CreateBrandProfileFormDto,
     @UploadedFile() logo: Express.Multer.File,
   ) {
     try {
+      // Convert form data to proper DTO
+      const createBrandProfileDto: Partial<CreateBrandProfileDto> = {
+        companyName: formData.companyName,
+        industry: formData.industry,
+        teamSize: formData.teamSize,
+        description: formData.description,
+        website: formData.website,
+        location: formData.location,
+      };
+
+      // Parse monthlyBudget if provided
+      if (formData.monthlyBudget) {
+        const monthlyBudget = parseFloat(formData.monthlyBudget);
+        if (isNaN(monthlyBudget) || monthlyBudget < 0) {
+          throw new BadRequestException('monthlyBudget must be a positive number');
+        }
+        createBrandProfileDto.monthlyBudget = monthlyBudget;
+      }
+
       let fileData = null;
       if (logo) {
         fileData = await this.fileUploadService.saveFile(logo, 'brand-profiles');
@@ -72,31 +100,29 @@ export class BrandProfileController {
       }
 
       // Parse arrays from form data
-      if (createBrandProfileDto.targetAudience) {
-        if (typeof createBrandProfileDto.targetAudience === 'string') {
-          try {
-            createBrandProfileDto.targetAudience = JSON.parse(createBrandProfileDto.targetAudience);
-          } catch (e) {
-            throw new BadRequestException('Invalid JSON format for targetAudience');
+      if (formData.targetAudience) {
+        try {
+          const targetAudience = JSON.parse(formData.targetAudience);
+          if (!Array.isArray(targetAudience)) {
+            throw new BadRequestException('targetAudience must be an array');
           }
-        }
-        // Ensure it's an array
-        if (!Array.isArray(createBrandProfileDto.targetAudience)) {
-          throw new BadRequestException('targetAudience must be an array');
-        }
 
-        // Validate each target audience item is a string
-        for (const item of createBrandProfileDto.targetAudience) {
-          if (typeof item !== 'string') {
-            throw new BadRequestException('Each targetAudience item must be a string');
+          // Validate each target audience item is a string
+          for (const item of targetAudience) {
+            if (typeof item !== 'string') {
+              throw new BadRequestException('Each targetAudience item must be a string');
+            }
           }
+          createBrandProfileDto.targetAudience = targetAudience;
+        } catch (e) {
+          if (e instanceof BadRequestException) throw e;
+          throw new BadRequestException('Invalid JSON format for targetAudience');
         }
       } else {
-        // Set default empty array if not provided
         createBrandProfileDto.targetAudience = [];
       }
 
-      return await this.brandProfileService.create(req.user.id, createBrandProfileDto);
+      return await this.brandProfileService.create(req.user.id, createBrandProfileDto as CreateBrandProfileDto);
     } catch (error) {
       if (error instanceof BadRequestException) {
         throw error;

@@ -13,6 +13,8 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -30,6 +32,7 @@ import {
   UpdateCreatorProfileDto,
   CreatorProfileResponseDto,
 } from './dto/creator-profile.dto';
+import { CreateCreatorProfileFormDto } from './dto/creator-profile-form.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -58,70 +61,90 @@ export class CreatorProfileController {
     type: CreatorProfileResponseDto,
   })
   @UseInterceptors(FileInterceptor('profileImage'))
+  @UsePipes(new ValidationPipe({
+    transform: true,
+    skipMissingProperties: true,
+    forbidNonWhitelisted: false,
+    whitelist: false
+  }))
   async create(
     @Request() req,
-    @Body() createCreatorProfileDto: CreateCreatorProfileDto,
+    @Body() formData: CreateCreatorProfileFormDto,
     @UploadedFile() profileImage: Express.Multer.File,
   ) {
     try {
-      // Parse arrays from form data
-      if (createCreatorProfileDto.platformStats) {
-        if (typeof createCreatorProfileDto.platformStats === 'string') {
-          try {
-            createCreatorProfileDto.platformStats = JSON.parse(createCreatorProfileDto.platformStats);
-          } catch (e) {
-            throw new BadRequestException('Invalid JSON format for platformStats');
-          }
-        }
-        // Ensure it's an array
-        if (!Array.isArray(createCreatorProfileDto.platformStats)) {
-          throw new BadRequestException('platformStats must be an array');
-        }
+      // Convert formData to DTO format
+      const createCreatorProfileDto: Partial<CreateCreatorProfileDto> = {
+        name: formData.name,
+        bio: formData.bio,
+        location: formData.location,
+        website: formData.website,
+        mediaKit: formData.mediaKit,
+      };
 
-        // Validate each platform stats object
-        for (const stat of createCreatorProfileDto.platformStats) {
-          if (typeof stat !== 'object' || stat === null) {
-            throw new BadRequestException('Each platformStats item must be an object');
+      // Parse baseRate if provided
+      if (formData.baseRate) {
+        const baseRate = parseFloat(formData.baseRate);
+        if (isNaN(baseRate) || baseRate < 0) {
+          throw new BadRequestException('baseRate must be a positive number');
+        }
+        createCreatorProfileDto.baseRate = baseRate;
+      }
+
+      // Parse arrays from form data
+      if (formData.platformStats) {
+        try {
+          const platformStats = JSON.parse(formData.platformStats);
+          if (!Array.isArray(platformStats)) {
+            throw new BadRequestException('platformStats must be an array');
           }
-          if (!stat.platform || typeof stat.platform !== 'string') {
-            throw new BadRequestException('Each platformStats item must have a platform string');
+
+          // Validate each platform stats object
+          for (const stat of platformStats) {
+            if (typeof stat !== 'object' || stat === null) {
+              throw new BadRequestException('Each platformStats item must be an object');
+            }
+            if (!stat.platform || typeof stat.platform !== 'string') {
+              throw new BadRequestException('Each platformStats item must have a platform string');
+            }
+            if (typeof stat.followers !== 'number' || stat.followers < 0) {
+              throw new BadRequestException('Each platformStats item must have a valid followers number');
+            }
+            if (typeof stat.engagementRate !== 'number' || stat.engagementRate < 0) {
+              throw new BadRequestException('Each platformStats item must have a valid engagementRate number');
+            }
+            if (typeof stat.avgViews !== 'number' || stat.avgViews < 0) {
+              throw new BadRequestException('Each platformStats item must have a valid avgViews number');
+            }
           }
-          if (typeof stat.followers !== 'number' || stat.followers < 0) {
-            throw new BadRequestException('Each platformStats item must have a valid followers number');
-          }
-          if (typeof stat.engagementRate !== 'number' || stat.engagementRate < 0) {
-            throw new BadRequestException('Each platformStats item must have a valid engagementRate number');
-          }
-          if (typeof stat.avgViews !== 'number' || stat.avgViews < 0) {
-            throw new BadRequestException('Each platformStats item must have a valid avgViews number');
-          }
+          createCreatorProfileDto.platformStats = platformStats;
+        } catch (e) {
+          if (e instanceof BadRequestException) throw e;
+          throw new BadRequestException('Invalid JSON format for platformStats');
         }
       } else {
-        // Set default empty array if not provided
         createCreatorProfileDto.platformStats = [];
       }
 
-      if (createCreatorProfileDto.niches) {
-        if (typeof createCreatorProfileDto.niches === 'string') {
-          try {
-            createCreatorProfileDto.niches = JSON.parse(createCreatorProfileDto.niches);
-          } catch (e) {
-            throw new BadRequestException('Invalid JSON format for niches');
+      if (formData.niches) {
+        try {
+          const niches = JSON.parse(formData.niches);
+          if (!Array.isArray(niches)) {
+            throw new BadRequestException('niches must be an array');
           }
-        }
-        // Ensure it's an array
-        if (!Array.isArray(createCreatorProfileDto.niches)) {
-          throw new BadRequestException('niches must be an array');
-        }
 
-        // Validate each niche is a string
-        for (const niche of createCreatorProfileDto.niches) {
-          if (typeof niche !== 'string') {
-            throw new BadRequestException('Each niche must be a string');
+          // Validate each niche is a string
+          for (const niche of niches) {
+            if (typeof niche !== 'string') {
+              throw new BadRequestException('Each niche must be a string');
+            }
           }
+          createCreatorProfileDto.niches = niches;
+        } catch (e) {
+          if (e instanceof BadRequestException) throw e;
+          throw new BadRequestException('Invalid JSON format for niches');
         }
       } else {
-        // Set default empty array if not provided
         createCreatorProfileDto.niches = [];
       }
 
@@ -132,7 +155,7 @@ export class CreatorProfileController {
         createCreatorProfileDto.profileImageMimetype = fileData.mimetype;
       }
 
-      return await this.creatorProfileService.create(req.user.id, createCreatorProfileDto);
+      return await this.creatorProfileService.create(req.user.id, createCreatorProfileDto as CreateCreatorProfileDto);
     } catch (error) {
       if (error instanceof BadRequestException) {
         throw error;
