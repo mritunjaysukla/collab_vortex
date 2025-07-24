@@ -6,14 +6,14 @@ dist/
 build/
 
 # Env files
-# .env
-# .env.*.local
+.env
+.env.*.local
 
-# # Logs
-# logs/
-# *.log
+# Logs
+logs/
+*.log
 
- # OS-specific
+# OS-specific
 .DS_Store
 Thumbs.db
 
