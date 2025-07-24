@@ -20,6 +20,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 @UseGuards(JwtAuthGuard)
 @Controller('messages')
 export class MessageController {
+  
   constructor(private readonly messageService: MessageService) { }
 
   @Post()
