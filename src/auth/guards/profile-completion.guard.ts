@@ -48,6 +48,7 @@ export class ProfileCompletionGuard implements CanActivate {
 
       // If this is a profile creation route, allow access regardless of isActive status
       if (isProfileCreationRoute) {
+        console.log('Profile creation route detected, allowing access'); // Debug log
         return true;
       }
 

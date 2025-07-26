@@ -30,6 +30,7 @@ import { Response } from 'express';
 import { UsersService } from '../users/users.service';
 import { UserRole } from '../common/enums';
 import { Public } from '../common/decorators/public.decorator'; // Add this import
+import { IsProfileCreationRoute } from '../common/decorators/profile-completion.decorator'; // Import the custom decorator
 
 @ApiTags('auth')
 @Controller('auth')
@@ -306,6 +307,7 @@ export class AuthController {
   @Get('profile-status')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
+  @IsProfileCreationRoute() // ADD THIS LINE - Allow access without completed profile
   @ApiOperation({
     summary: 'Get user profile completion status',
     description: 'Check if the current user has completed their profile setup based on their role'

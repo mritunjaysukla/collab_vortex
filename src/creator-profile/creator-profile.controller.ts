@@ -14,6 +14,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Logger,
+  Request,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -42,6 +43,7 @@ import { UserRole } from '../common/enums';
 import { FileUploadService } from '../common/services/file-upload.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/types/jwt-payload.type';
+import { IsProfileCreationRoute } from '../common/decorators/profile-completion.decorator';
 
 @ApiTags('creator-profiles')
 @Controller('creator-profiles')
@@ -58,6 +60,7 @@ export class CreatorProfileController {
   @Post()
   @Roles(UserRole.CREATOR)
   @UseGuards(RolesGuard)
+  @IsProfileCreationRoute() // ADD THIS DECORATOR - This allows access without completed profile
   @ApiOperation({
     summary: 'Create creator profile',
     description: 'Create a new creator profile with platform statistics and media uploads. Only users with CREATOR role can create profiles.',
@@ -121,6 +124,42 @@ export class CreatorProfileController {
     }
   }
 
+  // Add profile completion status endpoint
+  @Get('profile-completion-status')
+  @Roles(UserRole.CREATOR)
+  @UseGuards(RolesGuard)
+  @IsProfileCreationRoute() // ADD THIS DECORATOR - Allow access without completed profile
+  @ApiOperation({
+    summary: 'Get creator profile completion status',
+    description: 'Check if the current creator user has completed their profile setup'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Profile completion status',
+    schema: {
+      type: 'object',
+      properties: {
+        isComplete: { type: 'boolean' },
+        profile: { type: 'object', nullable: true }
+      }
+    }
+  })
+  async getProfileCompletionStatus(@Request() req) {
+    try {
+      const profile = await this.creatorProfileService.findByUserId(req.user.sub);
+      return {
+        isComplete: !!profile && req.user.isActive,
+        profile: profile || null
+      };
+    } catch (error) {
+      // If profile not found, it's not complete
+      return {
+        isComplete: false,
+        profile: null
+      };
+    }
+  }
+
   @Get()
   @ApiOperation({ summary: 'Get all creator profiles with optional filtering' })
   @ApiResponse({
@@ -142,21 +181,6 @@ export class CreatorProfileController {
   async findVerified(): Promise<CreatorProfileResponseDto[]> {
     return this.creatorProfileService.findVerifiedCreators();
   }
-
-  // @Get('search')
-  // @ApiOperation({ summary: 'Search creator profiles' })
-  // @ApiResponse({
-  //   status: 200,
-  //   description: 'Search results',
-  //   type: [CreatorProfileResponseDto],
-  // })
-  // @ApiQuery({ name: 'q', required: true, description: 'Search term' })
-  // async searchCreators(@Query('q') searchTerm: string): Promise<CreatorProfileResponseDto[]> {
-  //   if (!searchTerm || searchTerm.trim().length < 2) {
-  //     throw new BadRequestException('Search term must be at least 2 characters long');
-  //   }
-  //   return this.creatorProfileService.searchCreators(searchTerm.trim());
-  // }
 
   @Get('niche/:niche')
   @ApiOperation({ summary: 'Get creators by niche' })
@@ -186,22 +210,6 @@ export class CreatorProfileController {
   async getMyProfile(@CurrentUser() user: JwtPayload): Promise<CreatorProfileResponseDto> {
     return this.creatorProfileService.findByUserId(user.sub);
   }
-
-  // @Get(':id')
-  // @ApiOperation({ summary: 'Get creator profile by ID' })
-  // @ApiResponse({
-  //   status: 200,
-  //   description: 'Creator profile details',
-  //   type: CreatorProfileResponseDto,
-  // })
-  // @ApiResponse({
-  //   status: 404,
-  //   description: 'Creator profile not found',
-  // })
-  // @ApiParam({ name: 'id', description: 'Creator profile ID' })
-  // async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<CreatorProfileResponseDto> {
-  //   return this.creatorProfileService.findOne(id);
-  // }
 
   @Get(':id/statistics')
   @ApiOperation({ summary: 'Get creator profile statistics' })

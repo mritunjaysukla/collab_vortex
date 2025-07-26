@@ -37,6 +37,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { UserRole } from '../common/enums';
 import { FileUploadService } from '../common/services/file-upload.service';
+import { IsProfileCreationRoute } from '../common/decorators/profile-completion.decorator';
 
 @ApiTags('brand-profiles')
 @Controller('brand-profiles')
@@ -51,6 +52,7 @@ export class BrandProfileController {
   @Post()
   @Roles(UserRole.BRAND)
   @UseGuards(RolesGuard)
+  @IsProfileCreationRoute() // MOVED HERE - Allow access without completed profile
   @ApiOperation({ summary: 'Create brand profile' })
   @ApiConsumes('multipart/form-data')
   @ApiResponse({
@@ -74,6 +76,30 @@ export class BrandProfileController {
     return this.brandProfileService.create(req.user.sub, createBrandProfileDto);
   }
 
+  @Get('completion-status')
+  @Roles(UserRole.BRAND) // FIXED: Should be BRAND, not CREATOR
+  @UseGuards(RolesGuard)
+  @IsProfileCreationRoute() // Allow access without completed profile
+  @ApiOperation({
+    summary: 'Get brand profile completion status',
+    description: 'Check if the current brand user has completed their profile setup'
+  })
+  @ApiResponse({ status: 200, description: 'Profile completion status' })
+  async getProfileCompletionStatus(@Request() req) {
+    try {
+      const profile = await this.brandProfileService.findByUserId(req.user.sub); // FIXED: Use req.user.sub
+      return {
+        isComplete: !!profile && req.user.isActive,
+        profile: profile || null
+      };
+    } catch (error) {
+      return {
+        isComplete: false,
+        profile: null
+      };
+    }
+  }
+
   @Get()
   @ApiOperation({ summary: 'Get all brand profiles' })
   @ApiResponse({
@@ -85,33 +111,6 @@ export class BrandProfileController {
     return await this.brandProfileService.findAll();
   }
 
-  // @Get('verified')
-  // @ApiOperation({ summary: 'Get verified brand profiles' })
-  // @ApiResponse({
-  //   status: 200,
-  //   description: 'List of verified brand profiles',
-  //   type: [BrandProfileResponseDto],
-  // })
-  // async findVerified() {
-  //   return await this.brandProfileService.findVerifiedBrands();
-  // }
-
-  // @Get('search/industry')
-  // @ApiOperation({ summary: 'Search brands by industry' })
-  // @ApiQuery({
-  //   name: 'industry',
-  //   description: 'Industry to filter by',
-  //   example: 'Fashion & Lifestyle',
-  // })
-  // @ApiResponse({
-  //   status: 200,
-  //   description: 'List of brands in the specified industry',
-  //   type: [BrandProfileResponseDto],
-  // })
-  // async findByIndustry(@Query('industry') industry: string) {
-  //   return await this.brandProfileService.findByIndustry(industry);
-  // }
-
   @Get('me')
   @Roles(UserRole.BRAND)
   @UseGuards(RolesGuard)
@@ -122,20 +121,8 @@ export class BrandProfileController {
     type: BrandProfileResponseDto,
   })
   async getMyProfile(@Request() req) {
-    return await this.brandProfileService.findByUserId(req.user.id);
+    return await this.brandProfileService.findByUserId(req.user.sub); // FIXED: Use req.user.sub
   }
-
-  // @Get(':id')
-  // @ApiOperation({ summary: 'Get brand profile by ID' })
-  // @ApiParam({ name: 'id', description: 'Brand profile ID' })
-  // @ApiResponse({
-  //   status: 200,
-  //   description: 'Brand profile found',
-  //   type: BrandProfileResponseDto,
-  // })
-  // async findOne(@Param('id', ParseUUIDPipe) id: string) {
-  //   return await this.brandProfileService.findOne(id);
-  // }
 
   @Patch(':id')
   @Roles(UserRole.BRAND)
@@ -207,16 +194,5 @@ export class BrandProfileController {
   async remove(@Param('id', ParseUUIDPipe) id: string) {
     await this.brandProfileService.remove(id);
     return { message: 'Brand profile deleted successfully' };
-  }
-
-  @Get('completion-status')
-  @ApiOperation({ summary: 'Check profile completion status' })
-  @ApiResponse({ status: 200, description: 'Profile completion status' })
-  async getProfileCompletionStatus(@Request() req) {
-    const profile = await this.brandProfileService.findByUserId(req.user.id);
-    return {
-      isComplete: !!profile && req.user.isActive,
-      profile: profile || null
-    };
   }
 }
