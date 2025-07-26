@@ -197,6 +197,7 @@ export class CreatorProfileController {
   @Get('me')
   @Roles(UserRole.CREATOR)
   @UseGuards(RolesGuard)
+  @IsProfileCreationRoute()
   @ApiOperation({ summary: 'Get current user creator profile' })
   @ApiResponse({
     status: 200,

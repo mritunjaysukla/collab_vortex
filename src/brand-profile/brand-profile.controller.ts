@@ -114,6 +114,7 @@ export class BrandProfileController {
   @Get('me')
   @Roles(UserRole.BRAND)
   @UseGuards(RolesGuard)
+  @IsProfileCreationRoute()
   @ApiOperation({ summary: 'Get current user brand profile' })
   @ApiResponse({
     status: 200,
