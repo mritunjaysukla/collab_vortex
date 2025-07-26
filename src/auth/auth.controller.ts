@@ -29,6 +29,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Response } from 'express';
 import { UsersService } from '../users/users.service';
 import { UserRole } from '../common/enums';
+import { Public } from '../common/decorators/public.decorator'; // Add this import
 
 @ApiTags('auth')
 @Controller('auth')
@@ -38,6 +39,7 @@ export class AuthController {
     private readonly usersService: UsersService,
   ) { }
 
+  @Public() // Mark as public
   @Post('register')
   @ApiOperation({ summary: 'Register a new user' })
   @ApiResponse({
@@ -50,6 +52,7 @@ export class AuthController {
     return await this.authService.register(registerDto);
   }
 
+  @Public() // Mark as public
   @Post('login')
   @ApiOperation({ summary: 'Login user' })
   @ApiResponse({
@@ -62,14 +65,15 @@ export class AuthController {
     return await this.authService.login(loginDto);
   }
 
+  @Public() // Mark as public
   @Post('reset-password')
   @ApiOperation({ summary: 'Request password reset' })
   @ApiResponse({ status: 200, description: 'Password reset email sent' })
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto): Promise<{ message: string }> {
-    await this.authService.resetPassword(resetPasswordDto.email);
-    return { message: 'If the email exists, a password reset link has been sent' };
+    return await this.authService.resetPassword(resetPasswordDto.email);
   }
 
+  @Public() // Mark as public
   @Post('confirm-reset-password')
   @ApiOperation({ summary: 'Confirm password reset with token' })
   @ApiResponse({ status: 200, description: 'Password reset successfully' })
@@ -78,20 +82,7 @@ export class AuthController {
     return await this.authService.confirmPasswordReset(confirmResetDto.token, confirmResetDto.newPassword);
   }
 
-  @Patch('change-password')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Change user password' })
-  @ApiResponse({ status: 200, description: 'Password changed successfully' })
-  @ApiResponse({ status: 400, description: 'Current password is incorrect' })
-  async changePassword(
-    @Request() req,
-    @Body() changePasswordDto: ChangePasswordDto,
-  ): Promise<{ message: string }> {
-    await this.authService.changePassword(req.user.id, changePasswordDto);
-    return { message: 'Password changed successfully' };
-  }
-
+  @Public() // Mark as public
   @Get('reset-password')
   @ApiOperation({ summary: 'Serve password reset form' })
   @ApiResponse({ status: 200, description: 'Password reset form served' })
@@ -296,6 +287,20 @@ export class AuthController {
         </body>
       </html>
     `;
+  }
+
+  @Patch('change-password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Change user password' })
+  @ApiResponse({ status: 200, description: 'Password changed successfully' })
+  @ApiResponse({ status: 400, description: 'Current password is incorrect' })
+  async changePassword(
+    @Request() req,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
+    await this.authService.changePassword(req.user.id, changePasswordDto);
+    return { message: 'Password changed successfully' };
   }
 
   @Get('profile-status')

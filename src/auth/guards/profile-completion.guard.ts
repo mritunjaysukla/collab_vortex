@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../../users/users.service';
 import { ConfigService } from '@nestjs/config';
+import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator';
 
 @Injectable()
 export class ProfileCompletionGuard implements CanActivate {
@@ -14,8 +15,17 @@ export class ProfileCompletionGuard implements CanActivate {
   ) { }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    // Check if the route is marked as public
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (isPublic) {
+      return true; // Skip all checks for public routes
+    }
+
     // Get the route metadata to check if this is a profile creation route
-    // which should be accessible without a completed profile
     const isProfileCreationRoute = this.reflector.get<boolean>(
       'isProfileCreationRoute',
       context.getHandler()
