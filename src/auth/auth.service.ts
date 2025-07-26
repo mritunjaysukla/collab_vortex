@@ -312,6 +312,54 @@ export class AuthService {
     return tokenData && tokenData.expires > new Date();
   }
 
+  async refreshToken(refreshToken: string): Promise<{ accessToken: string }> {
+    this.logger.log('Token refresh attempt');
+
+    try {
+      // Verify refresh token
+      const payload = this.jwtService.verify(refreshToken, {
+        secret: this.configService.get('JWT_REFRESH_SECRET'),
+      });
+
+      // Find user and validate stored refresh token
+      const user = await this.usersService.findOne(payload.sub);
+      if (!user || user.refreshToken !== refreshToken) {
+        this.logger.warn('Invalid refresh token provided');
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      // Check if user is still active
+      if (!user.isActive) {
+        this.logger.warn(`Refresh token rejected: User ${user.id} is inactive`);
+        throw new UnauthorizedException('Account is inactive');
+      }
+
+      // Generate new access token with fresh user data
+      const newPayload = {
+        email: user.email,
+        sub: user.id,
+        role: user.role,
+        isProfileComplete: user.isProfileComplete || user.isActive
+      };
+
+      const accessToken = this.jwtService.sign(newPayload, {
+        secret: this.configService.get('JWT_SECRET'),
+        expiresIn: this.configService.get('JWT_EXPIRATION', '15m'),
+      });
+
+      this.logger.log(`Access token refreshed for user: ${user.id}`);
+
+      return { accessToken };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
+      this.logger.error('Token refresh failed:', error.stack);
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+  }
+
   // Private helper methods
   private async hashPassword(password: string): Promise<string> {
     try {

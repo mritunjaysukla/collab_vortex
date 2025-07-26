@@ -347,4 +347,10 @@ export class AuthController {
     };
   }
 
+  @Post('refresh')
+  @Public()
+  @ApiOperation({ summary: 'Refresh access token' })
+  async refreshToken(@Body() body: { refreshToken: string }) {
+    return await this.authService.refreshToken(body.refreshToken);
+  }
 }
