@@ -5,8 +5,11 @@ import {
   IsNumber,
   IsUrl,
   IsPositive,
+  IsArray,
+  ValidateNested,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 class PlatformStatsDto {
   @ApiProperty({ example: 'instagram' })
@@ -59,11 +62,16 @@ export class CreateCreatorProfileDto {
     ],
   })
   @IsOptional()
-  platformStats?: PlatformStatsDto[] | any;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PlatformStatsDto)
+  platformStats?: PlatformStatsDto[];
 
   @ApiProperty({ example: ['lifestyle', 'fashion', 'travel'] })
   @IsOptional()
-  niches?: string[] | any;
+  @IsArray()
+  @IsString({ each: true })
+  niches?: string[];
 
   @ApiProperty({ example: 'New York, NY' })
   @IsOptional()

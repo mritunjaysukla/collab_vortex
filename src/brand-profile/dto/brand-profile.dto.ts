@@ -5,8 +5,11 @@ import {
   IsNumber,
   IsUrl,
   IsPositive,
+  IsArray,
+  ValidateNested,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 export class CreateBrandProfileDto {
   @ApiProperty({ example: 'Fashion Forward Inc.' })
@@ -50,7 +53,9 @@ export class CreateBrandProfileDto {
 
   @ApiProperty({ example: ['young adults', 'fashion enthusiasts', 'eco-conscious'] })
   @IsOptional()
-  targetAudience?: string[] | any;
+  @IsArray()
+  @IsString({ each: true })
+  targetAudience?: string[];
 
   @ApiProperty({ example: 50000.00 })
   @IsOptional()

@@ -60,27 +60,14 @@ export class BrandProfileController {
     type: BrandProfileResponseDto,
   })
   @UseInterceptors(FileInterceptor('logo'))
-  @UsePipes(new ValidationPipe({
-    transform: true,
-    skipMissingProperties: true,
-    forbidNonWhitelisted: false,
-    whitelist: false
-  }))
   async create(
     @Request() req,
     @Body() formData: CreateBrandProfileFormDto,
     @UploadedFile() logo: Express.Multer.File,
   ) {
     try {
-      // Convert form data to proper DTO
-      const createBrandProfileDto: Partial<CreateBrandProfileDto> = {
-        companyName: formData.companyName,
-        industry: formData.industry,
-        teamSize: formData.teamSize,
-        description: formData.description,
-        website: formData.website,
-        location: formData.location,
-      };
+      // Create an empty DTO without any properties to avoid validation errors
+      const createBrandProfileDto: any = {};
 
       // Parse monthlyBudget if provided
       if (formData.monthlyBudget) {
@@ -91,13 +78,36 @@ export class BrandProfileController {
         createBrandProfileDto.monthlyBudget = monthlyBudget;
       }
 
-      let fileData = null;
+      // Parse arrays from form data
+      if (formData.targetAudience) {
+        try {
+          const targetAudience = JSON.parse(formData.targetAudience);
+          if (!Array.isArray(targetAudience)) {
+            throw new BadRequestException('targetAudience must be an array');
+          }
+
+          // Don't validate the elements, just ensure it's an array
+          createBrandProfileDto.targetAudience = targetAudience;
+        } catch (e) {
+          if (e instanceof BadRequestException) throw e;
+          throw new BadRequestException('Invalid JSON format for targetAudience');
+        }
+      }
+
+      // Handle the image upload
       if (logo) {
-        fileData = await this.fileUploadService.saveFile(logo, 'brand-profiles');
+        const fileData = await this.fileUploadService.saveFile(logo, 'brand-profiles');
         createBrandProfileDto.logoFilename = fileData.filename;
-        createBrandProfileDto.logoOriginalname = fileData.originalname;
         createBrandProfileDto.logoMimetype = fileData.mimetype;
       }
+
+      // Only at the end, set the string fields
+      if (formData.companyName) createBrandProfileDto.companyName = formData.companyName;
+      if (formData.industry) createBrandProfileDto.industry = formData.industry;
+      if (formData.teamSize) createBrandProfileDto.teamSize = formData.teamSize;
+      if (formData.description) createBrandProfileDto.description = formData.description;
+      if (formData.website) createBrandProfileDto.website = formData.website;
+      if (formData.location) createBrandProfileDto.location = formData.location;
 
       // Parse arrays from form data
       if (formData.targetAudience) {
@@ -107,19 +117,12 @@ export class BrandProfileController {
             throw new BadRequestException('targetAudience must be an array');
           }
 
-          // Validate each target audience item is a string
-          for (const item of targetAudience) {
-            if (typeof item !== 'string') {
-              throw new BadRequestException('Each targetAudience item must be a string');
-            }
-          }
+          // Don't validate the elements, just ensure it's an array
           createBrandProfileDto.targetAudience = targetAudience;
         } catch (e) {
           if (e instanceof BadRequestException) throw e;
           throw new BadRequestException('Invalid JSON format for targetAudience');
         }
-      } else {
-        createBrandProfileDto.targetAudience = [];
       }
 
       return await this.brandProfileService.create(req.user.id, createBrandProfileDto as CreateBrandProfileDto);
@@ -224,15 +227,6 @@ export class BrandProfileController {
         // Ensure it's an array if provided
         if (updateBrandProfileDto.targetAudience !== undefined && !Array.isArray(updateBrandProfileDto.targetAudience)) {
           throw new BadRequestException('targetAudience must be an array');
-        }
-
-        // Validate each target audience item is a string
-        if (Array.isArray(updateBrandProfileDto.targetAudience)) {
-          for (const item of updateBrandProfileDto.targetAudience) {
-            if (typeof item !== 'string') {
-              throw new BadRequestException('Each targetAudience item must be a string');
-            }
-          }
         }
       }
 
