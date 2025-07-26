@@ -321,6 +321,35 @@ export class CreatorProfileResponseDto {
   @ApiProperty({ example: 1024000 })
   profileImageSize: number;
 
+  // NEW: Direct URL fields
+  @ApiProperty({
+    example: 'http://localhost:3001/media/creator-profiles/abc123.jpg',
+    description: 'Direct URL to profile image'
+  })
+  profileImageUrl: string;
+
+  @ApiProperty({
+    example: 'http://localhost:3001/cdn/creator-profiles/abc123.jpg',
+    description: 'CDN URL for profile image'
+  })
+  profileImageCdnUrl: string;
+
+  @ApiProperty({
+    description: 'Profile image URLs in different sizes',
+    example: {
+      original: 'http://localhost:3001/media/creator-profiles/abc123.jpg',
+      thumbnail: 'http://localhost:3001/media/creator-profiles/abc123.jpg?size=thumbnail',
+      medium: 'http://localhost:3001/media/creator-profiles/abc123.jpg?size=medium',
+      large: 'http://localhost:3001/media/creator-profiles/abc123.jpg?size=large'
+    }
+  })
+  profileImageUrls: {
+    original: string;
+    thumbnail: string;
+    medium: string;
+    large: string;
+  };
+
   @ApiProperty({ type: [PlatformStatDto] })
   platformStats: PlatformStatDto[];
 

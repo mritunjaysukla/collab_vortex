@@ -8,7 +8,7 @@ import {
   IsArray,
   ValidateNested,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type, Transform } from 'class-transformer';
 
 export class CreateBrandProfileDto {
@@ -156,7 +156,6 @@ export class BrandProfileResponseDto {
   @ApiProperty({ example: 'logo.jpg' })
   logoFilename: string;
 
-
   @ApiProperty({ example: 'image/jpeg' })
   logoMimetype: string;
 
@@ -181,9 +180,45 @@ export class BrandProfileResponseDto {
   @ApiProperty({ example: 50000.00 })
   monthlyBudget: number;
 
+  // NEW: Direct URL fields
+  @ApiProperty({
+    example: 'http://localhost:3001/media/brand-profiles/abc123.jpg',
+    description: 'Direct URL to brand logo'
+  })
+  logoUrl: string;
+
+  @ApiProperty({
+    example: 'http://localhost:3001/cdn/brand-profiles/abc123.jpg',
+    description: 'CDN URL for brand logo'
+  })
+  logoCdnUrl: string;
+
+  @ApiProperty({
+    description: 'Brand logo URLs in different sizes',
+    example: {
+      original: 'http://localhost:3001/media/brand-profiles/abc123.jpg',
+      thumbnail: 'http://localhost:3001/media/brand-profiles/abc123.jpg?size=thumbnail',
+      medium: 'http://localhost:3001/media/brand-profiles/abc123.jpg?size=medium',
+      large: 'http://localhost:3001/media/brand-profiles/abc123.jpg?size=large'
+    }
+  })
+  logoUrls: {
+    original: string;
+    thumbnail: string;
+    medium: string;
+    large: string;
+  };
+
   @ApiProperty()
   createdAt: Date;
 
   @ApiProperty()
   updatedAt: Date;
+
+  @ApiProperty()
+  user: {
+    id: string;
+    email: string;
+    role: string;
+  };
 }
