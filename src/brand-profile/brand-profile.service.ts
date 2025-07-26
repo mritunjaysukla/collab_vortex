@@ -151,4 +151,13 @@ export class BrandProfileService {
       } : undefined,
     };
   }
+
+  async findEntityByUserId(userId: string): Promise<BrandProfile | null> {
+    const profile = await this.brandProfileRepository.findOne({
+      where: { user: { id: userId } },
+      relations: ['user'],
+    });
+
+    return profile || null;
+  }
 }

@@ -18,18 +18,27 @@ export class CampaignService {
     userId: string,
     createCampaignDto: CreateCampaignDto,
   ): Promise<Campaign> {
-    const brandProfile = await this.brandProfileService.findByUserId(userId);
-    if (!brandProfile) {
+    // FIXED: Get the actual brand profile entity, not the response DTO
+    const brandProfileResponse = await this.brandProfileService.findByUserId(userId);
+    if (!brandProfileResponse) {
       throw new ForbiddenException('Brand profile required to create campaigns');
     }
 
-    const campaign = this.campaignRepository.create({
+    // Get the actual entity for the relation
+    const brandProfile = await this.brandProfileService.findEntityByUserId(userId);
+    if (!brandProfile) {
+      throw new ForbiddenException('Brand profile entity not found');
+    }
+
+    // FIXED: Properly structure the campaign creation
+    const campaignData = {
       ...createCampaignDto,
       startDate: new Date(createCampaignDto.startDate),
       endDate: new Date(createCampaignDto.endDate),
-      brandProfile,
-    });
+      brandProfile: brandProfile, // Use the actual entity
+    };
 
+    const campaign = this.campaignRepository.create(campaignData);
     return await this.campaignRepository.save(campaign);
   }
 
@@ -61,11 +70,11 @@ export class CampaignService {
   }
 
   async findByUserId(userId: string): Promise<Campaign[]> {
-    const brandProfile = await this.brandProfileService.findByUserId(userId);
-    if (!brandProfile) {
+    const brandProfileResponse = await this.brandProfileService.findByUserId(userId);
+    if (!brandProfileResponse) {
       return [];
     }
-    return await this.findByBrandProfile(brandProfile.id);
+    return await this.findByBrandProfile(brandProfileResponse.id);
   }
 
   async update(
