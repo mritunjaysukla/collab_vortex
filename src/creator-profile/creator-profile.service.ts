@@ -1,89 +1,504 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, SelectQueryBuilder } from 'typeorm';
 import { CreatorProfile } from './entities/creator-profile.entity';
-import { CreateCreatorProfileDto, UpdateCreatorProfileDto } from './dto/creator-profile.dto';
-import { UsersService } from '../users/users.service';
-import { FileUploadService } from '../common/services/file-upload.service';
+import {
+  CreateCreatorProfileDto,
+  UpdateCreatorProfileDto,
+  CreatorProfileResponseDto,
+  CreatorProfileQueryDto,
+  CreatorProfileStatsDto,
+  CreatorNiche,
+  SocialPlatform,
+} from './dto/creator-profile.dto';
+import { User } from '../users/entities/user.entity';
+import { UsersService } from '../users/users.service'; // ADD THIS IMPORT
+import { ProposalStatus } from '../common/enums';
 
 @Injectable()
 export class CreatorProfileService {
+  private readonly logger = new Logger(CreatorProfileService.name);
+
   constructor(
     @InjectRepository(CreatorProfile)
     private readonly creatorProfileRepository: Repository<CreatorProfile>,
-    private readonly usersService: UsersService,
-    private readonly fileUploadService: FileUploadService
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    private readonly usersService: UsersService, // ADD THIS INJECTION
   ) { }
 
   async create(
     userId: string,
     createCreatorProfileDto: CreateCreatorProfileDto,
-  ): Promise<CreatorProfile> {
-    // Create the profile
-    const profile = this.creatorProfileRepository.create({
-      ...createCreatorProfileDto,
-      user: { id: userId } as any,
-    });
-    const savedProfile = await this.creatorProfileRepository.save(profile);
+  ): Promise<CreatorProfileResponseDto> {
+    try {
+      this.logger.log(`Creating creator profile for user: ${userId}`);
 
-    // Activate the user once profile is created
-    await this.usersService.activate(userId);
+      const user = await this.userRepository.findOne({
+        where: { id: userId },
+      });
 
-    return savedProfile;
-  }
+      if (!user) {
+        throw new NotFoundException(`User with ID ${userId} not found`);
+      }
 
-  async findAll(): Promise<CreatorProfile[]> {
-    return await this.creatorProfileRepository.find({
-      relations: ['user', 'proposals', 'platformIntegrations', 'analytics'],
-    });
-  }
+      const existingProfile = await this.creatorProfileRepository.findOne({
+        where: { user: { id: userId } },
+      });
 
-  async findOne(id: string): Promise<CreatorProfile> {
-    const profile = await this.creatorProfileRepository.findOne({
-      where: { id },
-      relations: ['user', 'proposals', 'platformIntegrations', 'analytics'],
-    });
+      if (existingProfile) {
+        throw new ConflictException('Creator profile already exists for this user');
+      }
 
-    if (!profile) {
-      throw new NotFoundException(`Creator profile with ID ${id} not found`);
+      const cleanedData = this.validateAndCleanData(createCreatorProfileDto);
+
+      const creatorProfile = this.creatorProfileRepository.create({
+        ...cleanedData,
+        user,
+        totalCollaborations: 0,
+        isAvailable: true,
+        isVerified: true, // Auto-verify for now
+      });
+
+      const savedProfile = await this.creatorProfileRepository.save(creatorProfile);
+
+      // Update user status to active and profile complete - THIS WAS MISSING
+      await this.usersService.updateProfileStatus(userId);
+
+      const profileEntity = Array.isArray(savedProfile) ? savedProfile[0] : savedProfile;
+      this.logger.log(`Creator profile created successfully with ID: ${profileEntity.id}`);
+      return this.mapToResponseDto(profileEntity);
+    } catch (error) {
+      this.logger.error(`Error creating creator profile: ${error.message}`, error.stack);
+      if (error instanceof NotFoundException || error instanceof ConflictException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to create creator profile');
     }
-
-    return profile;
   }
 
-  async findByUserId(userId: string): Promise<CreatorProfile | null> {
-    return await this.creatorProfileRepository.findOne({
-      where: { user: { id: userId } },
-      relations: ['user', 'proposals', 'platformIntegrations', 'analytics'],
-    });
+  async findAll(queryDto?: CreatorProfileQueryDto): Promise<CreatorProfileResponseDto[]> {
+    try {
+      this.logger.log('Fetching all creator profiles');
+
+      const queryBuilder = this.createQueryBuilder();
+
+      if (queryDto) {
+        this.applyFilters(queryBuilder, queryDto);
+        this.applySorting(queryBuilder, queryDto);
+        this.applyPagination(queryBuilder, queryDto);
+      }
+
+      const profiles = await queryBuilder.getMany();
+
+      this.logger.log(`Found ${profiles.length} creator profiles`);
+      return profiles.map(profile => this.mapToResponseDto(profile));
+    } catch (error) {
+      this.logger.error(`Error fetching creator profiles: ${error.message}`, error.stack);
+      throw new InternalServerErrorException('Failed to fetch creator profiles');
+    }
+  }
+
+  async findVerifiedCreators(): Promise<CreatorProfileResponseDto[]> {
+    try {
+      this.logger.log('Fetching verified creator profiles');
+
+      const profiles = await this.creatorProfileRepository.find({
+        where: { isVerified: true },
+        relations: ['user'],
+        order: { createdAt: 'DESC' },
+      });
+
+      return profiles.map(profile => this.mapToResponseDto(profile));
+    } catch (error) {
+      this.logger.error(`Error fetching verified creators: ${error.message}`, error.stack);
+      throw new InternalServerErrorException('Failed to fetch verified creators');
+    }
+  }
+
+  async findOne(id: string): Promise<CreatorProfileResponseDto> {
+    try {
+      this.logger.log(`Fetching creator profile with ID: ${id}`);
+
+      const profile = await this.creatorProfileRepository.findOne({
+        where: { id },
+        relations: ['user', 'proposals', 'platformIntegrations', 'analytics'],
+      });
+
+      if (!profile) {
+        throw new NotFoundException(`Creator profile with ID ${id} not found`);
+      }
+
+      return this.mapToResponseDto(profile);
+    } catch (error) {
+      this.logger.error(`Error fetching creator profile: ${error.message}`, error.stack);
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to fetch creator profile');
+    }
+  }
+
+  async findByUserId(userId: string): Promise<CreatorProfileResponseDto> {
+    try {
+      this.logger.log(`Fetching creator profile for user: ${userId}`);
+
+      const profile = await this.creatorProfileRepository.findOne({
+        where: { user: { id: userId } },
+        relations: ['user', 'proposals', 'platformIntegrations', 'analytics'],
+      });
+
+      if (!profile) {
+        throw new NotFoundException(`Creator profile not found for user ${userId}`);
+      }
+
+      return this.mapToResponseDto(profile);
+    } catch (error) {
+      this.logger.error(`Error fetching creator profile by user ID: ${error.message}`, error.stack);
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to fetch creator profile');
+    }
+  }
+
+  async findEntityByUserId(userId: string): Promise<CreatorProfile> {
+    try {
+      this.logger.log(`Fetching creator profile entity for user: ${userId}`);
+
+      const profile = await this.creatorProfileRepository.findOne({
+        where: { user: { id: userId } },
+        relations: ['user'],
+      });
+
+      if (!profile) {
+        throw new NotFoundException(`Creator profile not found for user ${userId}`);
+      }
+
+      return profile;
+    } catch (error) {
+      this.logger.error(`Error fetching creator profile entity: ${error.message}`, error.stack);
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to fetch creator profile entity');
+    }
   }
 
   async update(
     id: string,
     updateCreatorProfileDto: UpdateCreatorProfileDto,
-  ): Promise<CreatorProfile> {
-    const profile = await this.findOne(id);
-    Object.assign(profile, updateCreatorProfileDto);
-    return await this.creatorProfileRepository.save(profile);
+  ): Promise<CreatorProfileResponseDto> {
+    try {
+      this.logger.log(`Updating creator profile with ID: ${id}`);
+
+      const profile = await this.creatorProfileRepository.findOne({
+        where: { id },
+        relations: ['user'],
+      });
+
+      if (!profile) {
+        throw new NotFoundException(`Creator profile with ID ${id} not found`);
+      }
+
+      const cleanedData = this.validateAndCleanData(updateCreatorProfileDto);
+
+      Object.assign(profile, cleanedData);
+
+      const updatedProfile = await this.creatorProfileRepository.save(profile);
+
+      this.logger.log(`Creator profile updated successfully with ID: ${id}`);
+      return this.mapToResponseDto(updatedProfile);
+    } catch (error) {
+      this.logger.error(`Error updating creator profile: ${error.message}`, error.stack);
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to update creator profile');
+    }
   }
 
   async remove(id: string): Promise<void> {
-    const profile = await this.findOne(id);
-    await this.creatorProfileRepository.remove(profile);
+    try {
+      this.logger.log(`Deleting creator profile with ID: ${id}`);
+
+      const profile = await this.creatorProfileRepository.findOne({
+        where: { id },
+      });
+
+      if (!profile) {
+        throw new NotFoundException(`Creator profile with ID ${id} not found`);
+      }
+
+      await this.creatorProfileRepository.remove(profile);
+
+      this.logger.log(`Creator profile deleted successfully with ID: ${id}`);
+    } catch (error) {
+      this.logger.error(`Error deleting creator profile: ${error.message}`, error.stack);
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to delete creator profile');
+    }
   }
 
-  async findVerifiedCreators(): Promise<CreatorProfile[]> {
-    return await this.creatorProfileRepository.find({
-      where: { isVerified: true },
-      relations: ['user'],
-    });
+  async getStatistics(id: string): Promise<CreatorProfileStatsDto> {
+    try {
+      this.logger.log(`Fetching statistics for creator profile: ${id}`);
+
+      const profile = await this.creatorProfileRepository.findOne({
+        where: { id },
+        relations: ['proposals', 'analytics'],
+      });
+
+      if (!profile) {
+        throw new NotFoundException(`Creator profile with ID ${id} not found`);
+      }
+
+      const acceptedProposals = profile.proposals?.filter(p => p.status === ProposalStatus.ACCEPTED).length || 0;
+
+      const totalFollowers = profile.platformStats?.reduce((sum, stat) => sum + stat.followers, 0) || 0;
+
+      const avgEngagementRate = profile.platformStats?.length
+        ? profile.platformStats.reduce((sum, stat) => sum + stat.engagementRate, 0) / profile.platformStats.length
+        : 0;
+
+      const stats: CreatorProfileStatsDto = {
+        totalCollaborations: profile.totalCollaborations || 0,
+        totalReviews: acceptedProposals,
+        averageRating: Number(profile.averageRating) || 0,
+        totalFollowers,
+        averageEngagementRate: Number(avgEngagementRate.toFixed(2)),
+        completedProjects: acceptedProposals,
+        lastActiveAt: profile.updatedAt,
+      };
+
+      return stats;
+    } catch (error) {
+      this.logger.error(`Error fetching creator statistics: ${error.message}`, error.stack);
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to fetch creator statistics');
+    }
   }
 
-  async findByNiches(niches: string[]): Promise<CreatorProfile[]> {
-    return await this.creatorProfileRepository
-      .createQueryBuilder('creator')
-      .leftJoinAndSelect('creator.user', 'user')
-      .where('creator.niches && :niches', { niches })
-      .getMany();
+  async searchCreators(
+    searchTerm: string,
+    queryDto?: CreatorProfileQueryDto,
+  ): Promise<CreatorProfileResponseDto[]> {
+    try {
+      this.logger.log(`Searching creators with term: ${searchTerm}`);
+
+      const queryBuilder = this.createQueryBuilder();
+
+      queryBuilder.andWhere(
+        '(profile.name ILIKE :searchTerm OR profile.bio ILIKE :searchTerm OR profile.location ILIKE :searchTerm OR :searchTerm = ANY(profile.niches))',
+        { searchTerm: `%${searchTerm}%` }
+      );
+
+      if (queryDto) {
+        this.applyFilters(queryBuilder, queryDto);
+        this.applySorting(queryBuilder, queryDto);
+        this.applyPagination(queryBuilder, queryDto);
+      }
+
+      const profiles = await queryBuilder.getMany();
+
+      this.logger.log(`Found ${profiles.length} creators matching search term`);
+      return profiles.map(profile => this.mapToResponseDto(profile));
+    } catch (error) {
+      this.logger.error(`Error searching creators: ${error.message}`, error.stack);
+      throw new InternalServerErrorException('Failed to search creators');
+    }
+  }
+
+  async findByNiche(niche: string): Promise<CreatorProfileResponseDto[]> {
+    try {
+      this.logger.log(`Fetching creators by niche: ${niche}`);
+
+      const profiles = await this.creatorProfileRepository.find({
+        where: { niches: niche as any },
+        relations: ['user'],
+        order: { averageRating: 'DESC' },
+      });
+
+      return profiles.map(profile => this.mapToResponseDto(profile));
+    } catch (error) {
+      this.logger.error(`Error fetching creators by niche: ${error.message}`, error.stack);
+      throw new InternalServerErrorException('Failed to fetch creators by niche');
+    }
+  }
+
+  async updateAvailability(id: string, isAvailable: boolean): Promise<CreatorProfileResponseDto> {
+    try {
+      this.logger.log(`Updating availability for creator profile: ${id}`);
+
+      const profile = await this.creatorProfileRepository.findOne({
+        where: { id },
+        relations: ['user'],
+      });
+
+      if (!profile) {
+        throw new NotFoundException(`Creator profile with ID ${id} not found`);
+      }
+
+      profile.isAvailable = isAvailable;
+      const updatedProfile = await this.creatorProfileRepository.save(profile);
+
+      this.logger.log(`Availability updated for creator profile: ${id}`);
+      return this.mapToResponseDto(updatedProfile);
+    } catch (error) {
+      this.logger.error(`Error updating availability: ${error.message}`, error.stack);
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Failed to update availability');
+    }
+  }
+
+  private createQueryBuilder(): SelectQueryBuilder<CreatorProfile> {
+    return this.creatorProfileRepository
+      .createQueryBuilder('profile')
+      .leftJoinAndSelect('profile.user', 'user');
+  }
+
+  private applyFilters(queryBuilder: SelectQueryBuilder<CreatorProfile>, queryDto: CreatorProfileQueryDto): void {
+    if (queryDto.isVerified !== undefined) {
+      queryBuilder.andWhere('profile.isVerified = :isVerified', { isVerified: queryDto.isVerified });
+    }
+
+    if (queryDto.isAvailable !== undefined) {
+      queryBuilder.andWhere('profile.isAvailable = :isAvailable', { isAvailable: queryDto.isAvailable });
+    }
+
+    if (queryDto.niche) {
+      queryBuilder.andWhere(':niche = ANY(profile.niches)', { niche: queryDto.niche });
+    }
+
+    if (queryDto.location) {
+      queryBuilder.andWhere('profile.location ILIKE :location', { location: `%${queryDto.location}%` });
+    }
+
+    if (queryDto.minFollowers) {
+      queryBuilder.andWhere(
+        'EXISTS (SELECT 1 FROM jsonb_array_elements(profile.platformStats) AS stat WHERE (stat->\'followers\')::int >= :minFollowers)',
+        { minFollowers: queryDto.minFollowers }
+      );
+    }
+
+    if (queryDto.maxFollowers) {
+      queryBuilder.andWhere(
+        'EXISTS (SELECT 1 FROM jsonb_array_elements(profile.platformStats) AS stat WHERE (stat->\'followers\')::int <= :maxFollowers)',
+        { maxFollowers: queryDto.maxFollowers }
+      );
+    }
+  }
+
+  private applySorting(queryBuilder: SelectQueryBuilder<CreatorProfile>, queryDto: CreatorProfileQueryDto): void {
+    const { sortBy = 'createdAt', sortOrder = 'DESC' } = queryDto;
+    queryBuilder.orderBy(`profile.${sortBy}`, sortOrder);
+  }
+
+  private applyPagination(queryBuilder: SelectQueryBuilder<CreatorProfile>, queryDto: CreatorProfileQueryDto): void {
+    const { page = 1, limit = 10 } = queryDto;
+    const skip = (page - 1) * limit;
+    queryBuilder.skip(skip).take(limit);
+  }
+
+  private validateAndCleanData(data: CreateCreatorProfileDto | UpdateCreatorProfileDto): any {
+    const cleanedData = { ...data };
+
+    // Handle platform stats with more flexible validation
+    if (cleanedData.platformStats) {
+      cleanedData.platformStats = cleanedData.platformStats
+        .filter(stat => stat && stat.platform && typeof stat.followers === 'number')
+        .map(stat => ({
+          platform: stat.platform,
+          followers: Math.max(0, stat.followers),
+          engagementRate: Math.max(0, Math.min(100, stat.engagementRate)),
+          avgViews: stat.avgViews ? Math.max(0, stat.avgViews) : undefined,
+        }))
+        .slice(0, 10);
+    }
+
+    // Handle niches - keep as strings array
+    if (cleanedData.niches) {
+      cleanedData.niches = cleanedData.niches
+        .filter(niche => niche && typeof niche === 'string' && niche.trim().length > 0)
+        .map(niche => niche.trim().toLowerCase())
+        .slice(0, 10);
+    }
+
+    if (cleanedData.baseRate !== undefined) {
+      cleanedData.baseRate = Math.max(0, cleanedData.baseRate);
+    }
+
+    // Handle socialLinks more flexibly
+    if ('socialLinks' in cleanedData && cleanedData.socialLinks) {
+      const validLinks: any = {};
+      if (typeof cleanedData.socialLinks === 'object') {
+        Object.entries(cleanedData.socialLinks).forEach(([platform, url]) => {
+          if (url && typeof url === 'string' && url.trim().length > 0) {
+            validLinks[platform] = url.trim();
+          }
+        });
+      }
+      cleanedData.socialLinks = validLinks;
+    }
+
+    return cleanedData;
+  }
+
+  private isValidUrl(url: string): boolean {
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private mapToResponseDto(profile: CreatorProfile): CreatorProfileResponseDto {
+    return {
+      id: profile.id,
+      name: profile.name,
+      bio: profile.bio,
+      profileImageFilename: profile.profileImageFilename,
+      profileImageMimetype: profile.profileImageMimetype,
+      profileImageSize: profile.profileImageSize,
+      // Convert PlatformStat[] to PlatformStatDto[] by ensuring platform is SocialPlatform
+      platformStats: (profile.platformStats || []).map(stat => ({
+        platform: stat.platform as SocialPlatform,
+        followers: stat.followers,
+        engagementRate: stat.engagementRate,
+        avgViews: stat.avgViews,
+      })),
+      isVerified: profile.isVerified,
+      niches: profile.niches || [],
+      location: profile.location,
+      website: profile.website,
+      mediaKit: profile.mediaKit,
+      baseRate: profile.baseRate,
+      portfolioUrl: profile.portfolioUrl,
+      socialLinks: profile.socialLinks || {},
+      isAvailable: profile.isAvailable,
+      averageRating: profile.averageRating,
+      totalCollaborations: profile.totalCollaborations,
+      createdAt: profile.createdAt,
+      updatedAt: profile.updatedAt,
+      user: profile.user ? {
+        id: profile.user.id,
+        email: profile.user.email,
+        role: profile.user.role,
+      } : undefined,
+    };
   }
 }

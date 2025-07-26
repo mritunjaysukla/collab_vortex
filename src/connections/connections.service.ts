@@ -198,8 +198,17 @@ export class ConnectionsService {
       let creators = [];
 
       if (filters?.niches && filters.niches.length > 0) {
-        // Filter by specific niches if provided
-        creators = await this.creatorProfileService.findByNiches(filters.niches);
+        // For multiple niches, we'll search for each one and combine results
+        const allCreators = [];
+        for (const niche of filters.niches) {
+          const creatorsForNiche = await this.creatorProfileService.findByNiche(niche);
+          allCreators.push(...creatorsForNiche);
+        }
+        // Remove duplicates by ID
+        const uniqueCreators = allCreators.filter((creator, index, self) =>
+          index === self.findIndex(c => c.id === creator.id)
+        );
+        creators = uniqueCreators;
       } else {
         // Fall back to verified creators
         creators = await this.creatorProfileService.findVerifiedCreators();

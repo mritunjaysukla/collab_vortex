@@ -6,9 +6,9 @@ import {
   UpdateDateColumn,
   OneToOne,
 } from 'typeorm';
-import { UserRole } from '../../common/enums'; // Update path if 'enums.ts' is in 'src/common'
-import { CreatorProfile } from '../../creator-profile/entities/creator-profile.entity'; // Update path if needed
-import { BrandProfile } from '../../brand-profile/entities/brand-profile.entity'; // Update path if needed
+import { UserRole } from '../../common/enums';
+import { CreatorProfile } from '../../creator-profile/entities/creator-profile.entity';
+import { BrandProfile } from '../../brand-profile/entities/brand-profile.entity';
 
 @Entity('users')
 export class User {
@@ -29,6 +29,12 @@ export class User {
 
   @Column({ default: false })
   isActive: boolean;
+
+  @Column({ default: false })
+  isProfileComplete: boolean;
+
+  @Column({ nullable: true })
+  refreshToken?: string;
 
   @CreateDateColumn()
   createdAt: Date;

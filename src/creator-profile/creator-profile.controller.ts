@@ -7,14 +7,13 @@ import {
   Param,
   Delete,
   UseGuards,
-  Request,
   ParseUUIDPipe,
   Query,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
-  UsePipes,
-  ValidationPipe,
+  ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -25,129 +24,112 @@ import {
   ApiParam,
   ApiQuery,
   ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 import { CreatorProfileService } from './creator-profile.service';
 import {
   CreateCreatorProfileDto,
   UpdateCreatorProfileDto,
   CreatorProfileResponseDto,
+  CreatorProfileQueryDto,
+  CreatorProfileStatsDto,
+  CreatorNiche,
 } from './dto/creator-profile.dto';
-import { CreateCreatorProfileFormDto } from './dto/creator-profile-form.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
-import { IsProfileCreationRoute } from '../common/decorators/profile-completion.decorator';
 import { UserRole } from '../common/enums';
 import { FileUploadService } from '../common/services/file-upload.service';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { JwtPayload } from '../auth/types/jwt-payload.type';
 
 @ApiTags('creator-profiles')
 @Controller('creator-profiles')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class CreatorProfileController {
+  private readonly logger = new Logger(CreatorProfileController.name);
+
   constructor(
     private readonly creatorProfileService: CreatorProfileService,
-    private readonly fileUploadService: FileUploadService
+    private readonly fileUploadService: FileUploadService,
   ) { }
 
   @Post()
   @Roles(UserRole.CREATOR)
   @UseGuards(RolesGuard)
-  @ApiOperation({ summary: 'Create creator profile' })
+  @ApiOperation({
+    summary: 'Create creator profile',
+    description: 'Create a new creator profile with platform statistics and media uploads. Only users with CREATOR role can create profiles.',
+  })
   @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: 'Creator profile data with optional image upload',
+    type: CreateCreatorProfileDto,
+    examples: {
+      'complete-profile': {
+        summary: 'Complete Creator Profile',
+        description: 'Full creator profile with all fields',
+        value: {
+          name: 'Sarah Johnson',
+          bio: 'Passionate lifestyle and fashion content creator',
+          platformStats: '[{"platform":"instagram","followers":50000,"engagementRate":5.2,"avgViews":15000},{"platform":"tiktok","followers":25000,"engagementRate":7.8,"avgViews":30000}]',
+          niches: '["lifestyle","fashion","beauty"]',
+          location: 'New York, NY',
+          website: 'https://sarahjohnson.com',
+          portfolioUrl: 'https://portfolio.sarahjohnson.com',
+          mediaKit: 'https://drive.google.com/file/d/mediakit',
+          baseRate: '750',
+          socialLinks: '{"instagram":"https://instagram.com/sarah","tiktok":"https://tiktok.com/@sarah"}',
+          isAvailable: 'true',
+        },
+      },
+    },
+  })
   @ApiResponse({
     status: 201,
     description: 'Creator profile created successfully',
     type: CreatorProfileResponseDto,
   })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid input data',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Creator profile already exists',
+  })
   @UseInterceptors(FileInterceptor('profileImage'))
   async create(
-    @Request() req,
-    @Body() formData: CreateCreatorProfileFormDto,
-    @UploadedFile() profileImage: Express.Multer.File,
-  ) {
+    @CurrentUser() user: JwtPayload,
+    @Body() createCreatorProfileDto: CreateCreatorProfileDto,
+    @UploadedFile() profileImage?: Express.Multer.File,
+  ): Promise<CreatorProfileResponseDto> {
     try {
-      // Create an empty DTO without any properties to avoid validation errors
-      const createCreatorProfileDto: any = {};
-
-      // Parse baseRate if provided
-      if (formData.baseRate) {
-        const baseRate = parseFloat(formData.baseRate);
-        if (isNaN(baseRate) || baseRate < 0) {
-          throw new BadRequestException('baseRate must be a positive number');
-        }
-        createCreatorProfileDto.baseRate = baseRate;
-      }
-
-      // Process array fields first
-      if (formData.platformStats) {
-        try {
-          const platformStats = JSON.parse(formData.platformStats);
-          if (!Array.isArray(platformStats)) {
-            throw new BadRequestException('platformStats must be an array');
-          }
-
-          // Don't validate the structure, just ensure it's an array
-          createCreatorProfileDto.platformStats = platformStats;
-        } catch (e) {
-          if (e instanceof BadRequestException) throw e;
-          throw new BadRequestException('Invalid JSON format for platformStats');
-        }
-      }
-
-      if (formData.niches) {
-        try {
-          const niches = JSON.parse(formData.niches);
-          if (!Array.isArray(niches)) {
-            throw new BadRequestException('niches must be an array');
-          }
-
-          // Don't validate the elements, just ensure it's an array
-          createCreatorProfileDto.niches = niches;
-        } catch (e) {
-          if (e instanceof BadRequestException) throw e;
-          throw new BadRequestException('Invalid JSON format for niches');
-        }
-      }
-
-      // Handle the image upload
+      // Handle file uploads
       if (profileImage) {
         const fileData = await this.fileUploadService.saveFile(profileImage, 'creator-profiles');
         createCreatorProfileDto.profileImageFilename = fileData.filename;
         createCreatorProfileDto.profileImageMimetype = fileData.mimetype;
+        createCreatorProfileDto.profileImageSize = fileData.size;
       }
 
-      // Only at the end, set the string fields
-      if (formData.name) createCreatorProfileDto.name = formData.name;
-      if (formData.bio) createCreatorProfileDto.bio = formData.bio;
-      if (formData.location) createCreatorProfileDto.location = formData.location;
-      if (formData.website) createCreatorProfileDto.website = formData.website;
-      if (formData.mediaKit) createCreatorProfileDto.mediaKit = formData.mediaKit;
-
-      // Create the creator profile
-      return await this.creatorProfileService.create(req.user.id, createCreatorProfileDto);
+      return await this.creatorProfileService.create(user.sub, createCreatorProfileDto);
     } catch (error) {
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-      if (error instanceof SyntaxError) {
-        throw new BadRequestException(
-          'Invalid JSON format for array fields. Please ensure platformStats and niches are valid JSON arrays.'
-        );
-      }
+      this.logger.error(`Error creating creator profile: ${error.message}`, error.stack);
       throw error;
     }
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all creator profiles' })
+  @ApiOperation({ summary: 'Get all creator profiles with optional filtering' })
   @ApiResponse({
     status: 200,
-    description: 'List of all creator profiles',
+    description: 'List of creator profiles',
     type: [CreatorProfileResponseDto],
   })
-  async findAll() {
-    return await this.creatorProfileService.findAll();
+  async findAll(@Query() queryDto: CreatorProfileQueryDto): Promise<CreatorProfileResponseDto[]> {
+    return this.creatorProfileService.findAll(queryDto);
   }
 
   @Get('verified')
@@ -157,22 +139,36 @@ export class CreatorProfileController {
     description: 'List of verified creator profiles',
     type: [CreatorProfileResponseDto],
   })
-  async findVerified() {
-    return await this.creatorProfileService.findVerifiedCreators();
+  async findVerified(): Promise<CreatorProfileResponseDto[]> {
+    return this.creatorProfileService.findVerifiedCreators();
   }
 
   // @Get('search')
-  // @ApiOperation({ summary: 'Search creators by niches' })
-  // @ApiQuery({ name: 'niches', type: [String], example: ['lifestyle', 'fashion'] })
+  // @ApiOperation({ summary: 'Search creator profiles' })
   // @ApiResponse({
   //   status: 200,
-  //   description: 'Creators matching the niches',
+  //   description: 'Search results',
   //   type: [CreatorProfileResponseDto],
   // })
-  // async searchByNiches(@Query('niches') niches: string[]) {
-  //   const nichesArray = Array.isArray(niches) ? niches : [niches];
-  //   return await this.creatorProfileService.findByNiches(nichesArray);
+  // @ApiQuery({ name: 'q', required: true, description: 'Search term' })
+  // async searchCreators(@Query('q') searchTerm: string): Promise<CreatorProfileResponseDto[]> {
+  //   if (!searchTerm || searchTerm.trim().length < 2) {
+  //     throw new BadRequestException('Search term must be at least 2 characters long');
+  //   }
+  //   return this.creatorProfileService.searchCreators(searchTerm.trim());
   // }
+
+  @Get('niche/:niche')
+  @ApiOperation({ summary: 'Get creators by niche' })
+  @ApiResponse({
+    status: 200,
+    description: 'Creators in the specified niche',
+    type: [CreatorProfileResponseDto],
+  })
+  @ApiParam({ name: 'niche', description: 'Niche name', enum: CreatorNiche })
+  async findByNiche(@Param('niche') niche: string): Promise<CreatorProfileResponseDto[]> {
+    return this.creatorProfileService.findByNiche(niche);
+  }
 
   @Get('me')
   @Roles(UserRole.CREATOR)
@@ -183,21 +179,45 @@ export class CreatorProfileController {
     description: 'Current user creator profile',
     type: CreatorProfileResponseDto,
   })
-  async getMyProfile(@Request() req) {
-    return await this.creatorProfileService.findByUserId(req.user.id);
+  @ApiResponse({
+    status: 404,
+    description: 'Creator profile not found',
+  })
+  async getMyProfile(@CurrentUser() user: JwtPayload): Promise<CreatorProfileResponseDto> {
+    return this.creatorProfileService.findByUserId(user.sub);
   }
 
   // @Get(':id')
   // @ApiOperation({ summary: 'Get creator profile by ID' })
-  // @ApiParam({ name: 'id', description: 'Creator profile ID' })
   // @ApiResponse({
   //   status: 200,
-  //   description: 'Creator profile found',
+  //   description: 'Creator profile details',
   //   type: CreatorProfileResponseDto,
   // })
-  // async findOne(@Param('id', ParseUUIDPipe) id: string) {
-  //   return await this.creatorProfileService.findOne(id);
+  // @ApiResponse({
+  //   status: 404,
+  //   description: 'Creator profile not found',
+  // })
+  // @ApiParam({ name: 'id', description: 'Creator profile ID' })
+  // async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<CreatorProfileResponseDto> {
+  //   return this.creatorProfileService.findOne(id);
   // }
+
+  @Get(':id/statistics')
+  @ApiOperation({ summary: 'Get creator profile statistics' })
+  @ApiResponse({
+    status: 200,
+    description: 'Creator profile statistics',
+    type: CreatorProfileStatsDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Creator profile not found',
+  })
+  @ApiParam({ name: 'id', description: 'Creator profile ID' })
+  async getStatistics(@Param('id', ParseUUIDPipe) id: string): Promise<CreatorProfileStatsDto> {
+    return this.creatorProfileService.getStatistics(id);
+  }
 
   @Patch(':id')
   @Roles(UserRole.CREATOR)
@@ -210,48 +230,27 @@ export class CreatorProfileController {
     description: 'Creator profile updated successfully',
     type: CreatorProfileResponseDto,
   })
+  @ApiResponse({
+    status: 404,
+    description: 'Creator profile not found',
+  })
   @UseInterceptors(FileInterceptor('profileImage'))
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateCreatorProfileDto: UpdateCreatorProfileDto,
     @UploadedFile() profileImage: Express.Multer.File,
-  ) {
+    @CurrentUser() user: JwtPayload,
+  ): Promise<CreatorProfileResponseDto> {
     try {
-      // Parse arrays from form data
-      if (updateCreatorProfileDto.platformStats) {
-        if (typeof updateCreatorProfileDto.platformStats === 'string') {
-          try {
-            updateCreatorProfileDto.platformStats = JSON.parse(updateCreatorProfileDto.platformStats);
-          } catch (e) {
-            throw new BadRequestException('Invalid JSON format for platformStats');
-          }
-        }
-        // Ensure it's an array if provided
-        if (updateCreatorProfileDto.platformStats !== undefined && !Array.isArray(updateCreatorProfileDto.platformStats)) {
-          throw new BadRequestException('platformStats must be an array');
-        }
+      // Verify ownership
+      const existingProfile = await this.creatorProfileService.findOne(id);
+      if (existingProfile.user?.id !== user.sub) {
+        throw new ForbiddenException('You can only update your own profile');
       }
 
-      if (updateCreatorProfileDto.niches) {
-        if (typeof updateCreatorProfileDto.niches === 'string') {
-          try {
-            updateCreatorProfileDto.niches = JSON.parse(updateCreatorProfileDto.niches);
-          } catch (e) {
-            throw new BadRequestException('Invalid JSON format for niches');
-          }
-        }
-        // Ensure it's an array if provided
-        if (updateCreatorProfileDto.niches !== undefined && !Array.isArray(updateCreatorProfileDto.niches)) {
-          throw new BadRequestException('niches must be an array');
-        }
-      }
-
-      // If a new image is uploaded, save it and update the DTO
+      // Handle file upload
       if (profileImage) {
-        // Get the existing profile to see if we need to delete an old image
-        const existingProfile = await this.creatorProfileService.findOne(id);
-
-        // Delete the old image if it exists
+        // Delete old image if it exists
         if (existingProfile.profileImageFilename) {
           await this.fileUploadService.deleteFile(
             existingProfile.profileImageFilename,
@@ -259,23 +258,61 @@ export class CreatorProfileController {
           );
         }
 
-        // Save the new image
+        // Save new image
         const fileData = await this.fileUploadService.saveFile(profileImage, 'creator-profiles');
         updateCreatorProfileDto.profileImageFilename = fileData.filename;
-        updateCreatorProfileDto.profileImageOriginalname = fileData.originalname;
         updateCreatorProfileDto.profileImageMimetype = fileData.mimetype;
+        updateCreatorProfileDto.profileImageSize = fileData.size;
       }
 
-      return await this.creatorProfileService.update(id, updateCreatorProfileDto);
+      return this.creatorProfileService.update(id, updateCreatorProfileDto);
     } catch (error) {
-      if (error instanceof BadRequestException) {
-        throw error;
+      this.logger.error(`Error updating creator profile: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  @Patch(':id/availability')
+  @Roles(UserRole.CREATOR)
+  @UseGuards(RolesGuard)
+  @ApiOperation({ summary: 'Update creator availability status' })
+  @ApiParam({ name: 'id', description: 'Creator profile ID' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        isAvailable: {
+          type: 'boolean',
+          description: 'Availability status',
+        },
+      },
+      required: ['isAvailable'],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Availability updated successfully',
+    type: CreatorProfileResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Creator profile not found',
+  })
+  async updateAvailability(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body('isAvailable') isAvailable: boolean,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<CreatorProfileResponseDto> {
+    try {
+      // Verify ownership
+      const existingProfile = await this.creatorProfileService.findOne(id);
+      if (existingProfile.user?.id !== user.sub) {
+        throw new ForbiddenException('You can only update your own profile');
       }
-      if (error instanceof SyntaxError) {
-        throw new BadRequestException(
-          'Invalid JSON format for array fields. Please ensure platformStats and niches are valid JSON arrays.'
-        );
-      }
+
+      return this.creatorProfileService.updateAvailability(id, isAvailable);
+    } catch (error) {
+      this.logger.error(`Error updating availability: ${error.message}`, error.stack);
       throw error;
     }
   }
@@ -285,22 +322,37 @@ export class CreatorProfileController {
   @UseGuards(RolesGuard)
   @ApiOperation({ summary: 'Delete creator profile' })
   @ApiParam({ name: 'id', description: 'Creator profile ID' })
-  @ApiResponse({ status: 200, description: 'Creator profile deleted successfully' })
-  async remove(@Param('id', ParseUUIDPipe) id: string) {
-    await this.creatorProfileService.remove(id);
-    return { message: 'Creator profile deleted successfully' };
-  }
+  @ApiResponse({
+    status: 204,
+    description: 'Creator profile deleted successfully',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Creator profile not found',
+  })
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: JwtPayload,
+  ): Promise<void> {
+    try {
+      // Verify ownership
+      const existingProfile = await this.creatorProfileService.findOne(id);
+      if (existingProfile.user?.id !== user.sub) {
+        throw new ForbiddenException('You can only delete your own profile');
+      }
 
-  @Get('completion-status')
-  @UseGuards(JwtAuthGuard) // Only JwtAuthGuard, no ProfileCompletionGuard
-  @IsProfileCreationRoute() // Mark as a profile creation route
-  @ApiOperation({ summary: 'Check profile completion status' })
-  @ApiResponse({ status: 200, description: 'Profile completion status' })
-  async getProfileCompletionStatus(@Request() req) {
-    const user = await this.creatorProfileService.findByUserId(req.user.id);
-    return {
-      isComplete: !!user && req.user.isActive,
-      profile: user || null
-    };
+      // Delete associated files
+      if (existingProfile.profileImageFilename) {
+        await this.fileUploadService.deleteFile(
+          existingProfile.profileImageFilename,
+          'creator-profiles'
+        );
+      }
+
+      return this.creatorProfileService.remove(id);
+    } catch (error) {
+      this.logger.error(`Error deleting creator profile: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 }

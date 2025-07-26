@@ -20,7 +20,7 @@ export class ProposalService {
     userId: string,
     createProposalDto: CreateProposalDto,
   ): Promise<Proposal> {
-    const creatorProfile = await this.creatorProfileService.findByUserId(userId);
+    const creatorProfile = await this.creatorProfileService.findEntityByUserId(userId);
     if (!creatorProfile) {
       throw new ForbiddenException('Creator profile required to create proposals');
     }

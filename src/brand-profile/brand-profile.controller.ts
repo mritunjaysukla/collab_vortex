@@ -32,7 +32,6 @@ import {
   UpdateBrandProfileDto,
   BrandProfileResponseDto,
 } from './dto/brand-profile.dto';
-import { CreateBrandProfileFormDto } from './dto/brand-profile-form.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -62,76 +61,17 @@ export class BrandProfileController {
   @UseInterceptors(FileInterceptor('logo'))
   async create(
     @Request() req,
-    @Body() formData: CreateBrandProfileFormDto,
+    @Body() createBrandProfileDto: CreateBrandProfileDto,
     @UploadedFile() logo: Express.Multer.File,
   ) {
-    try {
-      // Create an empty DTO without any properties to avoid validation errors
-      const createBrandProfileDto: any = {};
-
-      // Parse monthlyBudget if provided
-      if (formData.monthlyBudget) {
-        const monthlyBudget = parseFloat(formData.monthlyBudget);
-        if (isNaN(monthlyBudget) || monthlyBudget < 0) {
-          throw new BadRequestException('monthlyBudget must be a positive number');
-        }
-        createBrandProfileDto.monthlyBudget = monthlyBudget;
-      }
-
-      // Parse arrays from form data
-      if (formData.targetAudience) {
-        try {
-          const targetAudience = JSON.parse(formData.targetAudience);
-          if (!Array.isArray(targetAudience)) {
-            throw new BadRequestException('targetAudience must be an array');
-          }
-
-          // Don't validate the elements, just ensure it's an array
-          createBrandProfileDto.targetAudience = targetAudience;
-        } catch (e) {
-          if (e instanceof BadRequestException) throw e;
-          throw new BadRequestException('Invalid JSON format for targetAudience');
-        }
-      }
-
-      // Handle the image upload
-      if (logo) {
-        const fileData = await this.fileUploadService.saveFile(logo, 'brand-profiles');
-        createBrandProfileDto.logoFilename = fileData.filename;
-        createBrandProfileDto.logoMimetype = fileData.mimetype;
-      }
-
-      // Only at the end, set the string fields
-      if (formData.companyName) createBrandProfileDto.companyName = formData.companyName;
-      if (formData.industry) createBrandProfileDto.industry = formData.industry;
-      if (formData.teamSize) createBrandProfileDto.teamSize = formData.teamSize;
-      if (formData.description) createBrandProfileDto.description = formData.description;
-      if (formData.website) createBrandProfileDto.website = formData.website;
-      if (formData.location) createBrandProfileDto.location = formData.location;
-
-      // Parse arrays from form data
-      if (formData.targetAudience) {
-        try {
-          const targetAudience = JSON.parse(formData.targetAudience);
-          if (!Array.isArray(targetAudience)) {
-            throw new BadRequestException('targetAudience must be an array');
-          }
-
-          // Don't validate the elements, just ensure it's an array
-          createBrandProfileDto.targetAudience = targetAudience;
-        } catch (e) {
-          if (e instanceof BadRequestException) throw e;
-          throw new BadRequestException('Invalid JSON format for targetAudience');
-        }
-      }
-
-      return await this.brandProfileService.create(req.user.id, createBrandProfileDto as CreateBrandProfileDto);
-    } catch (error) {
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-      throw error;
+    // Handle file upload if present
+    if (logo) {
+      const fileData = await this.fileUploadService.saveFile(logo, 'brand-profiles');
+      createBrandProfileDto.logoFilename = fileData.filename;
+      createBrandProfileDto.logoMimetype = fileData.mimetype;
     }
+
+    return this.brandProfileService.create(req.user.sub, createBrandProfileDto);
   }
 
   @Get()

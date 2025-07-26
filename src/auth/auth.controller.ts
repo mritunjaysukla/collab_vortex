@@ -27,11 +27,16 @@ import {
 } from './dto/auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Response } from 'express';
+import { UsersService } from '../users/users.service';
+import { UserRole } from '../common/enums';
 
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(
+    private readonly authService: AuthService,
+    private readonly usersService: UsersService,
+  ) { }
 
   @Post('register')
   @ApiOperation({ summary: 'Register a new user' })
@@ -291,6 +296,48 @@ export class AuthController {
         </body>
       </html>
     `;
+  }
+
+  @Get('profile-status')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Get user profile completion status',
+    description: 'Check if the current user has completed their profile setup based on their role'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Profile completion status',
+    schema: {
+      type: 'object',
+      properties: {
+        isActive: { type: 'boolean' },
+        isProfileComplete: { type: 'boolean' },
+        hasProfile: { type: 'boolean' },
+        userRole: { type: 'string', enum: ['CREATOR', 'BRAND'] },
+        redirectTo: { type: 'string', nullable: true }
+      }
+    }
+  })
+  async getProfileStatus(@Request() req) {
+    const userId = req.user.sub;
+    await this.usersService.updateProfileStatus(userId);
+    const user = await this.usersService.findOne(userId);
+
+    let redirectTo = null;
+    if (!user.isProfileComplete) {
+      redirectTo = user.role === UserRole.CREATOR
+        ? '/creator-profile/create'
+        : '/brand-profile/create';
+    }
+
+    return {
+      isActive: user.isActive,
+      isProfileComplete: user.isProfileComplete,
+      hasProfile: user.isActive && user.isProfileComplete,
+      userRole: user.role,
+      redirectTo
+    };
   }
 
 }

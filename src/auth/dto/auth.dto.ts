@@ -1,4 +1,4 @@
-import { IsEmail, IsEnum, MinLength, IsString } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsEnum } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { UserRole } from '../../common/enums';
 
@@ -11,7 +11,6 @@ export class RegisterDto {
   @IsString()
   @MinLength(6)
   password: string;
-
 
   @ApiProperty({ enum: UserRole, example: UserRole.CREATOR })
   @IsEnum(UserRole)
@@ -28,35 +27,12 @@ export class LoginDto {
   password: string;
 }
 
-export class ResetPasswordDto {
-  @ApiProperty({ example: 'john@example.com' })
-  @IsEmail()
-  email: string;
-}
-
-export class ChangePasswordDto {
-  @ApiProperty({ example: 'currentPassword123' })
-  currentPassword: string;
-
-  @ApiProperty({ example: 'newPassword123', minLength: 6 })
-  @MinLength(6)
-  newPassword: string;
-}
-
-export class ConfirmResetPasswordDto {
-  @ApiProperty({ example: 'reset-token-from-email' })
-  @IsString()
-  token: string;
-
-  @ApiProperty({ example: 'newPassword123', minLength: 6 })
-  @IsString()
-  @MinLength(6)
-  newPassword: string;
-}
-
 export class AuthResponseDto {
-  @ApiProperty({ example: 'jwt-access-token' })
+  @ApiProperty()
   accessToken: string;
+
+  @ApiProperty({ required: false })
+  refreshToken?: string;
 
   @ApiProperty({
     example: {
@@ -74,6 +50,34 @@ export class AuthResponseDto {
     isActive: boolean;
     isProfileComplete: boolean;
   };
+}
+
+export class ResetPasswordDto {
+  @ApiProperty({ example: 'john@example.com' })
+  @IsEmail()
+  email: string;
+}
+
+export class ConfirmResetPasswordDto {
+  @ApiProperty({ example: 'reset-token-string' })
+  @IsString()
+  token: string;
+
+  @ApiProperty({ example: 'newSecurePassword123', minLength: 6 })
+  @IsString()
+  @MinLength(6)
+  newPassword: string;
+}
+
+export class ChangePasswordDto {
+  @ApiProperty({ example: 'currentPassword123' })
+  @IsString()
+  currentPassword: string;
+
+  @ApiProperty({ example: 'newSecurePassword123', minLength: 6 })
+  @IsString()
+  @MinLength(6)
+  newPassword: string;
 }
 
 

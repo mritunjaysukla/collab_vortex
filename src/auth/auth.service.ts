@@ -92,7 +92,37 @@ export class AuthService {
       }
 
       this.logger.log(`User successfully logged in: ${user.id}`);
-      return this.generateTokens(user);
+
+      // Get fresh user data to ensure we have the latest profile status
+      const freshUser = await this.usersService.findOne(user.id);
+
+      const payload = {
+        email: freshUser.email,
+        sub: freshUser.id,
+        role: freshUser.role,
+        isProfileComplete: freshUser.isProfileComplete || freshUser.isActive
+      };
+
+      const accessToken = this.jwtService.sign(payload);
+      const refreshToken = this.jwtService.sign(payload, {
+        secret: this.configService.get('JWT_REFRESH_SECRET'),
+        expiresIn: '7d',
+      });
+
+      // Save refresh token
+      await this.usersService.updateRefreshToken(freshUser.id, refreshToken);
+
+      return {
+        accessToken,
+        refreshToken,
+        user: {
+          id: freshUser.id,
+          email: freshUser.email,
+          role: freshUser.role,
+          isActive: freshUser.isActive,
+          isProfileComplete: freshUser.isProfileComplete || freshUser.isActive
+        }
+      };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;

@@ -19,15 +19,16 @@ export class BrandProfileService {
     userId: string,
     createBrandProfileDto: CreateBrandProfileDto,
   ): Promise<BrandProfile> {
-    // Create the profile
+    // Create the profile with verified = true
     const profile = this.brandProfileRepository.create({
       ...createBrandProfileDto,
+      verified: true,
       user: { id: userId } as any,
     });
     const savedProfile = await this.brandProfileRepository.save(profile);
 
-    // Activate the user once profile is created
-    await this.usersService.activate(userId);
+    // Update user status to active and profile complete
+    await this.usersService.updateProfileStatus(userId);
 
     return savedProfile;
   }

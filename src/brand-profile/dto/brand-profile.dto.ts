@@ -9,7 +9,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 export class CreateBrandProfileDto {
   @ApiProperty({ example: 'Fashion Forward Inc.' })
@@ -20,16 +20,6 @@ export class CreateBrandProfileDto {
   @IsOptional()
   @IsString()
   industry?: string;
-
-  // No validation here because we'll handle it separately with file upload
-  // The file will be processed via multer and handled in the controller
-  @ApiProperty({ type: 'string', format: 'binary', description: 'Brand logo image file (jpeg, jpg, png)' })
-  logo?: any;
-
-  // Added properties for file metadata
-  logoFilename?: string;
-  logoOriginalname?: string;
-  logoMimetype?: string;
 
   @ApiProperty({ example: '50-100 employees' })
   @IsOptional()
@@ -51,17 +41,51 @@ export class CreateBrandProfileDto {
   @IsString()
   location?: string;
 
-  @ApiProperty({ example: ['young adults', 'fashion enthusiasts', 'eco-conscious'] })
+  @ApiProperty({
+    example: ['young adults', 'fashion enthusiasts', 'eco-conscious'],
+    description: 'Target audience array (can be JSON string in form data)',
+  })
   @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      try {
+        // First try to parse as JSON
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) ? parsed : [parsed];
+      } catch {
+        // If JSON parsing fails, split by comma
+        return value.split(',').map(item => item.trim());
+      }
+    }
+    return Array.isArray(value) ? value : [value];
+  })
   @IsArray()
   @IsString({ each: true })
   targetAudience?: string[];
 
-  @ApiProperty({ example: 50000.00 })
+  @ApiProperty({ example: 50000.0 })
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? parseFloat(value) : value))
   @IsNumber()
-  @IsPositive()
   monthlyBudget?: number;
+
+  @ApiProperty({
+    type: 'string',
+    format: 'binary',
+    required: false,
+    description: 'Brand logo image file (jpeg, jpg, png)',
+  })
+  @IsOptional()
+  logo?: any;
+
+  // File metadata properties (set by controller)
+  @IsOptional()
+  @IsString()
+  logoFilename?: string;
+
+  @IsOptional()
+  @IsString()
+  logoMimetype?: string;
 }
 
 export class UpdateBrandProfileDto {

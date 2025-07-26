@@ -1,30 +1,34 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { APP_GUARD } from '@nestjs/core';
+import { JwtModule } from '@nestjs/jwt';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
-import { CreatorProfileModule } from './creator-profile/creator-profile.module';
 import { BrandProfileModule } from './brand-profile/brand-profile.module';
-import { CampaignModule } from './campaigns/campaigns.module';
+import { CreatorProfileModule } from './creator-profile/creator-profile.module';
+import { CommonModule } from './common/common.module';
+import { ProfileCompletionGuard } from './auth/guards/profile-completion.guard';
 import { ProposalModule } from './proposals/proposals.module';
+import { ConnectionsModule } from './connections/connections.module';
+import { DeliverableModule } from './deliverables/deliverables.module';
+import { PlatformIntegrationModule } from './platform-integrations/platform-integrations.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { CampaignModule } from './campaigns/campaigns.module';
 import { CollaborationModule } from './collaborations/collaborations.module';
 import { ContractModule } from './contracts/contracts.module';
-import { DeliverableModule } from './deliverables/deliverables.module';
 import { MessageModule } from './messages/messages.module';
 import { NotificationModule } from './notifications/notifications.module';
-import { ReviewModule } from './reviews/reviews.module';
-import { AnalyticsModule } from './analytics/analytics.module';
-import { PlatformIntegrationModule } from './platform-integrations/platform-integrations.module';
 import { PaymentModule } from './payments/payments.module';
-import { ChatModule } from './chat/chat.module';
-import { ConnectionsModule } from './connections/connections.module';
-import { CommonModule } from './common/common.module';
+import { ReviewModule } from './reviews/reviews.module';
+
+
+
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
     }),
     TypeOrmModule.forRoot({
       type: 'postgres',
@@ -38,24 +42,31 @@ import { CommonModule } from './common/common.module';
       logging: process.env.NODE_ENV === 'development' ? ['error'] : false,
       logger: 'advanced-console',
     }),
+    JwtModule.register({}),
     AuthModule,
     UsersModule,
-    CreatorProfileModule,
     BrandProfileModule,
-    CampaignModule,
+    CreatorProfileModule,
     ProposalModule,
+    CommonModule,
+    ConnectionsModule,
+    DeliverableModule,
+    PlatformIntegrationModule,
+    AnalyticsModule,
+    CampaignModule,
     CollaborationModule,
     ContractModule,
-    DeliverableModule,
     MessageModule,
     NotificationModule,
-    ReviewModule,
-    AnalyticsModule,
-    PlatformIntegrationModule,
     PaymentModule,
-    ChatModule,
-    ConnectionsModule,
-    CommonModule,
+    ReviewModule,
+  ],
+  controllers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ProfileCompletionGuard,
+    },
   ],
 })
 export class AppModule { }
